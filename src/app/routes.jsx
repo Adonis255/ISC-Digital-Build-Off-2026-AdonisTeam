@@ -9,6 +9,7 @@ import AdminDashboard from '../modules/administration/pages/AdminDashboard.jsx'
 import LecturerDashboard from '../modules/lecturer/pages/LecturerDashboard.jsx'
 import WorkerDashboard from '../modules/worker/pages/WorkerDashboard.jsx'
 import UserManagement from '../modules/administration/pages/UserManagement.jsx'
+import DepartmentManagement from '../modules/administration/pages/DepartmentManagement.jsx'
 import OfficeManagement from '../modules/administration/pages/OfficeManagement.jsx'
 import CourseManagement from '../modules/administration/pages/CourseManagement.jsx'
 import EnrollmentManagement from '../modules/administration/pages/EnrollmentManagement.jsx'
@@ -29,6 +30,10 @@ import InternshipsPage from '../modules/internships/pages/InternshipsPage.jsx'
 import ScholarshipsPage from '../modules/scholarships/pages/ScholarshipsPage.jsx'
 import DirectoryPage from '../modules/directory/pages/DirectoryPage.jsx'
 import ExaminationsPage from '../modules/examinations/pages/ExaminationsPage.jsx'
+import CommunityPage from '../modules/community/pages/CommunityPage.jsx'
+import NoticeBoardPage from '../modules/community/pages/NoticeBoardPage.jsx'
+import GroupsPage from '../modules/student/pages/GroupsPage.jsx'
+import EventsPage from '../modules/student/pages/EventsPage.jsx'
 import { ROLE_HOME } from '../utils/constants.js'
 
 export default function AppRoutes() {
@@ -45,32 +50,40 @@ export default function AppRoutes() {
 
       <Route element={<DashboardLayout allowedRoles={['student']} />}>
         <Route path="/student/dashboard" element={<StudentDashboard />} />
+        <Route path="/student/notice-board" element={<NoticeBoardPage />} />
         <Route path="/student/catalog" element={<CourseCatalog />} />
         <Route path="/student/attendance" element={<StudentAttendance />} />
-        <Route path="/student/directory" element={<DirectoryPage />} />
         <Route path="/student/exams" element={<ExaminationsPage />} />
+        <Route path="/student/community" element={<CommunityPage />} />
+        <Route path="/student/groups" element={<GroupsPage />} />
+        <Route path="/student/events" element={<EventsPage />} />
+        <Route path="/student/announcements" element={<AnnouncementsPage />} />
         <Route path="/student/lost-found" element={<LostFoundPage />} />
         <Route path="/student/maintenance" element={<MaintenancePage />} />
-        <Route path="/student/finance" element={<FinancePage />} />
+        <Route path="/student/counselling" element={<CounsellingPage />} />
+        <Route path="/student/directory" element={<DirectoryPage />} />
         <Route path="/student/internships" element={<InternshipsPage />} />
         <Route path="/student/scholarships" element={<ScholarshipsPage />} />
         <Route path="/student/complaints" element={<ComplaintsPage />} />
-        <Route path="/student/counselling" element={<CounsellingPage />} />
-        <Route path="/student/announcements" element={<AnnouncementsPage />} />
         <Route path="/student/profile" element={<ProfilePage />} />
         <Route path="/student/notifications" element={<NotificationsPage />} />
       </Route>
 
       <Route element={<DashboardLayout allowedRoles={['admin']} />}>
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/notice-board" element={<NoticeBoardPage />} />
         <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/departments" element={<DepartmentManagement />} />
         <Route path="/admin/offices" element={<OfficeManagement />} />
         <Route path="/admin/courses" element={<CourseManagement />} />
         <Route path="/admin/enrollments" element={<EnrollmentManagement />} />
         <Route path="/admin/exams" element={<ExaminationsPage />} />
-        <Route path="/admin/finance" element={<FinancePage />} />
+        <Route path="/admin/community" element={<CommunityPage />} />
+        <Route path="/admin/groups" element={<GroupsPage />} />
+        <Route path="/admin/events" element={<EventsPage />} />
         <Route path="/admin/internships" element={<InternshipsPage />} />
         <Route path="/admin/scholarships" element={<ScholarshipsPage />} />
+        <Route path="/admin/finance" element={<FinancePage />} />
         <Route path="/admin/complaints" element={<ComplaintsPage />} />
         <Route path="/admin/lost-found" element={<LostFoundPage />} />
         <Route path="/admin/maintenance" element={<MaintenancePage />} />
@@ -83,8 +96,8 @@ export default function AppRoutes() {
 
       <Route element={<DashboardLayout allowedRoles={['lecturer']} />}>
         <Route path="/lecturer/dashboard" element={<LecturerDashboard />} />
+        <Route path="/lecturer/notice-board" element={<NoticeBoardPage />} />
         <Route path="/lecturer/classes" element={<MyClasses />} />
-        {/* THIS WAS THE MISSING ROUTE CAUSING THE "REFRESH" */}
         <Route path="/lecturer/live-lecture" element={<LiveLecture />} />
         <Route path="/lecturer/exams" element={<ExaminationsPage />} />
         <Route path="/lecturer/announcements" element={<AnnouncementsPage />} />
@@ -94,6 +107,7 @@ export default function AppRoutes() {
 
       <Route element={<DashboardLayout allowedRoles={['worker']} />}>
         <Route path="/worker/dashboard" element={<WorkerDashboard />} />
+        <Route path="/worker/notice-board" element={<NoticeBoardPage />} />
         <Route path="/worker/tasks" element={<AssignedTasks />} />
         <Route path="/worker/profile" element={<ProfilePage />} />
         <Route path="/worker/notifications" element={<NotificationsPage />} />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
-import { FileText, Calendar, MapPin, Armchair } from 'lucide-react'
+import { FileText, Calendar, MapPin, Armchair, Upload } from 'lucide-react'
 
 export default function ExaminationsPage() {
   const { profile, role } = useAuth()
@@ -10,19 +10,17 @@ export default function ExaminationsPage() {
   const [rooms, setRooms] = useState([])
   const [mySeats, setMySeats] = useState([])
   
-  // Forms
   const [showExamForm, setShowExamForm] = useState(false)
   const [showRoomForm, setShowRoomForm] = useState(false)
   const [examForm, setExamForm] = useState({ course_id: '', title: '', exam_date: '', location: '' })
   const [roomForm, setRoomForm] = useState({ name: '', capacity: 50 })
   const [generating, setGenerating] = useState(false)
+  const [uploading, setUploading] = useState(false)
 
   const loadData = async () => {
-    // Load exams
     const { data: e } = await supabase.from('exams').select('*, courses(code, title)').order('exam_date', { ascending: true })
     setExams(e || [])
     
-    // Load courses & rooms for admin
     if (role === 'admin' || role === 'lecturer') {
       const { data: c } = await supabase.from('courses').select('id, code, title')
       setCourses(c || [])
@@ -30,7 +28,6 @@ export default function ExaminationsPage() {
       setRooms(r || [])
     }
 
-    // Load student's own seats
     if (role === 'student') {
       const { data: s } = await supabase.from('seat_allocations').select('*, exam_rooms(name), exams(title, exam_date)').eq('student_id', profile.id)
       setMySeats(s || [])
@@ -38,6 +35,35 @@ export default function ExaminationsPage() {
   }
 
   useEffect(() => { loadData() }, [role, profile])
+
+  const handleCSVUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploading(true)
+    
+    const reader = new FileReader()
+    reader.onload = async (event) => {
+      const text = event.target.result
+      const rows = text.split(/\r?\n/).map(row => row.trim()).filter(row => row)
+      const dataRows = rows[0].toLowerCase().includes('code') ? rows.slice(1) : rows
+
+      let success = 0
+      for (const row of dataRows) {
+        // Format: Course Code, Exam Title, Date (YYYY-MM-DD HH:MM), Location
+        const [code, title, dateStr, location] = row.split(',').map(s => s?.trim())
+        const course = courses.find(c => c.code.toLowerCase() === code.toLowerCase())
+        if (course && title && dateStr) {
+          const examDate = new Date(dateStr).toISOString()
+          await supabase.from('exams').insert([{ course_id: course.id, title, exam_date: examDate, location }])
+          success++
+        }
+      }
+      alert(`✅ ${success} exams uploaded successfully!`)
+      setUploading(false)
+      loadData()
+    }
+    reader.readAsText(file)
+  }
 
   const handleCreateExam = async (e) => {
     e.preventDefault()
@@ -59,7 +85,6 @@ export default function ExaminationsPage() {
     if (rooms.length === 0) return alert('Please create exam rooms first.')
     setGenerating(true)
 
-    // 1. Get all students
     const { data: students } = await supabase.from('profiles').select('id').eq('role', 'student')
     if (!students || students.length === 0) {
       alert('No students found to allocate.')
@@ -67,43 +92,31 @@ export default function ExaminationsPage() {
       return
     }
 
-    // 2. Clear existing allocations for this exam
     await supabase.from('seat_allocations').delete().eq('exam_id', examId)
 
-    // 3. Allocation Algorithm
     let currentRoomIndex = 0
     let currentSeat = 1
     const allocations = []
 
     for (const student of students) {
-      // Check if current room is full, move to next
       if (currentSeat > rooms[currentRoomIndex].capacity) {
         currentRoomIndex++
         currentSeat = 1
       }
-
-      // If we run out of rooms, stop allocating
       if (currentRoomIndex >= rooms.length) {
         alert('Warning: Not enough room capacity to seat all students.')
         break
       }
-
       allocations.push({
-        exam_id: examId,
-        student_id: student.id,
-        room_id: rooms[currentRoomIndex].id,
-        seat_number: currentSeat
+        exam_id: examId, student_id: student.id, room_id: rooms[currentRoomIndex].id, seat_number: currentSeat
       })
       currentSeat++
     }
 
-    // 4. Save to Database
     if (allocations.length > 0) {
-      const { error } = await supabase.from('seat_allocations').insert(allocations)
-      if (error) alert('Error saving seats: ' + error.message)
-      else alert(`Successfully allocated seats for ${allocations.length} students!`)
+      await supabase.from('seat_allocations').insert(allocations)
+      alert(`Successfully allocated seats for ${allocations.length} students!`)
     }
-
     setGenerating(false)
     loadData()
   }
@@ -129,11 +142,24 @@ export default function ExaminationsPage() {
           )}
           {canPost && (
             <button onClick={() => setShowExamForm(!showExamForm)} className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
-              {showExamForm ? 'Cancel' : '+ Post Exam'}
+              {showExamForm ? 'Cancel' : '+ Add Exam'}
             </button>
           )}
         </div>
       </div>
+
+      {isAdmin && (
+        <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-blue-900 mb-1">Bulk Upload Exams (CSV)</h3>
+            <p className="text-sm text-blue-700">Format: <code>Code, Title, Date (YYYY-MM-DD HH:MM), Location</code></p>
+          </div>
+          <label className="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-700 flex items-center gap-2">
+            <Upload className="w-4 h-4" /> {uploading ? 'Uploading...' : 'Upload CSV'}
+            <input type="file" accept=".csv" onChange={handleCSVUpload} disabled={uploading} className="hidden" />
+          </label>
+        </div>
+      )}
 
       {showRoomForm && isAdmin && (
         <form onSubmit={handleCreateRoom} className="bg-white p-6 rounded-xl border shadow-sm flex gap-4 items-end">
@@ -189,19 +215,15 @@ export default function ExaminationsPage() {
                     <Armchair className="w-5 h-5 text-green-600" />
                     <div>
                       <p className="text-sm font-bold text-green-800">Your Seat Allocation</p>
-                      <p className="text-xs text-green-700">Room: <strong>{mySeat.exam_rooms?.name}</strong> | Seat Number: <strong>{mySeat.seat_number}</strong></p>
+                      <p className="text-xs text-green-700">Room: <strong>{mySeat.exam_rooms?.name}</strong> | Seat: <strong>{mySeat.seat_number}</strong></p>
                     </div>
                   </div>
                 )}
 
                 {isAdmin && (
                   <div className="mt-4 pt-3 border-t">
-                    <button 
-                      onClick={() => generateSeats(exam.id)} 
-                      disabled={generating}
-                      className="bg-navy-900 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50"
-                    >
-                      {generating ? 'Generating Algorithm...' : 'Generate Seat Allocations'}
+                    <button onClick={() => generateSeats(exam.id)} disabled={generating} className="bg-navy-900 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50">
+                      {generating ? 'Generating...' : 'Generate Seat Allocations'}
                     </button>
                   </div>
                 )}
@@ -209,7 +231,6 @@ export default function ExaminationsPage() {
             </div>
           )
         })}
-        {exams.length === 0 && <p className="text-slate-500">No exams scheduled yet.</p>}
       </div>
     </div>
   )

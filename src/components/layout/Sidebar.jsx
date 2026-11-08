@@ -1,16 +1,19 @@
 import { NavLink } from 'react-router-dom'
-import { LogOut, Home, Users, Wrench, Megaphone, Bell, Search, MessageSquare } from 'lucide-react'
+import { LogOut, Home, Users, Wrench, Megaphone, Bell, Search, MessageSquare, Calendar, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth.js'
 
 export default function Sidebar() {
   const { profile, role, signOut } = useAuth()
+  
   const nav = {
     student: [
       { to: '/student/dashboard', label: 'Dashboard', icon: Home },
       { to: '/student/community', label: 'Community', icon: MessageSquare },
+      { to: '/student/groups', label: 'Study Groups', icon: Users },
+      { to: '/student/events', label: 'Campus Events', icon: Calendar },
       { to: '/student/lost-found', label: 'Lost & Found', icon: Search },
       { to: '/student/maintenance', label: 'Maintenance', icon: Wrench },
-      { to: '/student/announcements', label: 'Announcements', icon: Megaphone },
+      { to: '/student/counselling', label: 'Counselling', icon: ShieldCheck },
       { to: '/student/notifications', label: 'Notifications', icon: Bell }
     ],
     admin: [
@@ -18,6 +21,7 @@ export default function Sidebar() {
       { to: '/admin/users', label: 'User Management', icon: Users },
       { to: '/admin/lost-found', label: 'Lost & Found', icon: Search },
       { to: '/admin/maintenance', label: 'Maintenance', icon: Wrench },
+      { to: '/admin/counselling', label: 'Counselling', icon: ShieldCheck },
       { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
       { to: '/admin/notifications', label: 'Notifications', icon: Bell }
     ],
@@ -32,6 +36,7 @@ export default function Sidebar() {
       { to: '/worker/notifications', label: 'Notifications', icon: Bell }
     ]
   }
+
   return (
     <aside className="w-64 bg-navy-900 text-slate-300 flex flex-col h-screen fixed left-0 top-0 z-20">
       <div className="p-6 border-b border-navy-700">

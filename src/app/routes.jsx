@@ -14,6 +14,9 @@ import AnnouncementsPage from '../modules/announcements/pages/AnnouncementsPage.
 import CommunityPage from '../modules/community/pages/CommunityPage.jsx'
 import NotificationsPage from '../modules/notifications/pages/NotificationsPage.jsx'
 import AssignedTasks from '../modules/worker/pages/AssignedTasks.jsx'
+import GroupsPage from '../modules/student/pages/GroupsPage.jsx'
+import EventsPage from '../modules/student/pages/EventsPage.jsx'
+import CounsellingPage from '../modules/counselling/pages/CounsellingPage.jsx'
 import { ROLE_HOME } from '../utils/constants.js'
 
 export default function AppRoutes() {
@@ -42,8 +45,11 @@ export default function AppRoutes() {
       <Route element={<DashboardLayout allowedRoles={['student']} />}>
         <Route path="/student/dashboard" element={<StudentDashboard />} />
         <Route path="/student/community" element={<CommunityPage />} />
+        <Route path="/student/groups" element={<GroupsPage />} />
+        <Route path="/student/events" element={<EventsPage />} />
         <Route path="/student/lost-found" element={<LostFoundPage />} />
         <Route path="/student/maintenance" element={<MaintenancePage />} />
+        <Route path="/student/counselling" element={<CounsellingPage />} />
         <Route path="/student/announcements" element={<AnnouncementsPage />} />
         <Route path="/student/notifications" element={<NotificationsPage />} />
       </Route>
@@ -53,6 +59,7 @@ export default function AppRoutes() {
         <Route path="/admin/users" element={<UserManagement />} />
         <Route path="/admin/lost-found" element={<LostFoundPage />} />
         <Route path="/admin/maintenance" element={<MaintenancePage />} />
+        <Route path="/admin/counselling" element={<CounsellingPage />} />
         <Route path="/admin/announcements" element={<AnnouncementsPage />} />
         <Route path="/admin/notifications" element={<NotificationsPage />} />
       </Route>

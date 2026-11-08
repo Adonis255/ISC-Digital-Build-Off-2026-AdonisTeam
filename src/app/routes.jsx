@@ -8,6 +8,7 @@ import AdminDashboard from '../modules/administration/pages/AdminDashboard.jsx'
 import LecturerDashboard from '../modules/lecturer/pages/LecturerDashboard.jsx'
 import WorkerDashboard from '../modules/worker/pages/WorkerDashboard.jsx'
 import UserManagement from '../modules/administration/pages/UserManagement.jsx'
+import CourseManagement from '../modules/administration/pages/CourseManagement.jsx'
 import LostFoundPage from '../modules/lost-and-found/pages/LostFoundPage.jsx'
 import MaintenancePage from '../modules/maintenance/pages/MaintenancePage.jsx'
 import AnnouncementsPage from '../modules/announcements/pages/AnnouncementsPage.jsx'
@@ -17,24 +18,14 @@ import AssignedTasks from '../modules/worker/pages/AssignedTasks.jsx'
 import GroupsPage from '../modules/student/pages/GroupsPage.jsx'
 import EventsPage from '../modules/student/pages/EventsPage.jsx'
 import CounsellingPage from '../modules/counselling/pages/CounsellingPage.jsx'
+import MyClasses from '../modules/lecturer/pages/MyClasses.jsx'
 import { ROLE_HOME } from '../utils/constants.js'
 
 export default function AppRoutes() {
   const { user, role, loading, signOut } = useAuth()
   
   if (loading) return <div className="h-screen grid place-items-center text-slate-500">Loading...</div>
-
-  if (user && !role) {
-    return (
-      <div className="h-screen grid place-items-center bg-slate-100 p-4">
-        <div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md">
-          <h2 className="text-xl font-bold text-red-600 mb-2">Profile Not Found</h2>
-          <p className="text-slate-600 mb-4 text-sm">We could not load your user profile. Please contact the admin.</p>
-          <button onClick={signOut} className="bg-slate-800 text-white px-4 py-2 rounded-lg w-full font-medium">Sign Out</button>
-        </div>
-      </div>
-    )
-  }
+  if (user && !role) return <div className="h-screen grid place-items-center bg-slate-100 p-4"><div className="bg-white p-8 rounded-xl shadow-lg text-center max-w-md"><h2 className="text-xl font-bold text-red-600 mb-2">Profile Not Found</h2><button onClick={signOut} className="bg-slate-800 text-white px-4 py-2 rounded-lg w-full">Sign Out</button></div></div>
 
   return (
     <Routes>
@@ -57,6 +48,7 @@ export default function AppRoutes() {
       <Route element={<DashboardLayout allowedRoles={['admin']} />}>
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/courses" element={<CourseManagement />} />
         <Route path="/admin/lost-found" element={<LostFoundPage />} />
         <Route path="/admin/maintenance" element={<MaintenancePage />} />
         <Route path="/admin/counselling" element={<CounsellingPage />} />
@@ -66,6 +58,7 @@ export default function AppRoutes() {
 
       <Route element={<DashboardLayout allowedRoles={['lecturer']} />}>
         <Route path="/lecturer/dashboard" element={<LecturerDashboard />} />
+        <Route path="/lecturer/classes" element={<MyClasses />} />
         <Route path="/lecturer/announcements" element={<AnnouncementsPage />} />
         <Route path="/lecturer/notifications" element={<NotificationsPage />} />
       </Route>

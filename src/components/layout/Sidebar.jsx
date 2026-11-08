@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LogOut, Home, Users, Wrench, Megaphone, Bell, Search, MessageSquare, Calendar, ShieldCheck } from 'lucide-react'
+import { LogOut, Home, Users, Wrench, Megaphone, Bell, Search, MessageSquare, Calendar, ShieldCheck, BookOpen } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth.js'
 
 export default function Sidebar() {
@@ -19,6 +19,7 @@ export default function Sidebar() {
     admin: [
       { to: '/admin/dashboard', label: 'Dashboard', icon: Home },
       { to: '/admin/users', label: 'User Management', icon: Users },
+      { to: '/admin/courses', label: 'Courses', icon: BookOpen },
       { to: '/admin/lost-found', label: 'Lost & Found', icon: Search },
       { to: '/admin/maintenance', label: 'Maintenance', icon: Wrench },
       { to: '/admin/counselling', label: 'Counselling', icon: ShieldCheck },
@@ -27,6 +28,7 @@ export default function Sidebar() {
     ],
     lecturer: [
       { to: '/lecturer/dashboard', label: 'Dashboard', icon: Home },
+      { to: '/lecturer/classes', label: 'My Classes', icon: BookOpen },
       { to: '/lecturer/announcements', label: 'Announcements', icon: Megaphone },
       { to: '/lecturer/notifications', label: 'Notifications', icon: Bell }
     ],

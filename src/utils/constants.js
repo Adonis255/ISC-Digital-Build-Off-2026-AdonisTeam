@@ -1,0 +1,1 @@
+export const ROLE_HOME = { admin: '/admin/dashboard', student: '/student/dashboard', lecturer: '/lecturer/dashboard', worker: '/worker/dashboard' };

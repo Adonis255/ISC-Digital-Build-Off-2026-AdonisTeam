@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LogOut, Home, Users, Wrench, Megaphone, Bell, Search, MessageSquare, Calendar, ShieldCheck, BookOpen, User, Shield, DollarSign, AlertCircle, Briefcase, Award, Contact, FileText, Settings, ShieldAlert } from 'lucide-react'
+import { LogOut, Home, Users, Wrench, Megaphone, Bell, Search, MessageSquare, Calendar, ShieldCheck, BookOpen, User, Shield, DollarSign, AlertCircle, Briefcase, Award, Contact, FileText, Settings, ShieldAlert, Building, CheckSquare, UserCheck, Library } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth.js'
 
 export default function Sidebar({ isOpen, closeMenu }) {
@@ -8,38 +8,36 @@ export default function Sidebar({ isOpen, closeMenu }) {
   const nav = {
     student: [
       { to: '/student/dashboard', label: 'Dashboard', icon: Home },
-      { to: '/student/community', label: 'Community', icon: MessageSquare },
+      { to: '/student/catalog', label: 'Course Catalog', icon: Library },
+      { to: '/student/attendance', label: 'My Attendance', icon: CheckSquare },
+      { to: '/student/directory', label: 'Directory', icon: Contact },
       { to: '/student/exams', label: 'Exams', icon: FileText },
       { to: '/student/lost-found', label: 'Lost & Found', icon: Search },
       { to: '/student/maintenance', label: 'Maintenance', icon: Wrench },
       { to: '/student/finance', label: 'My Fees', icon: DollarSign },
       { to: '/student/internships', label: 'Internships', icon: Briefcase },
       { to: '/student/scholarships', label: 'Scholarships', icon: Award },
-      { to: '/student/directory', label: 'Directory', icon: Contact },
       { to: '/student/complaints', label: 'Complaints', icon: AlertCircle },
       { to: '/student/counselling', label: 'Counselling', icon: ShieldCheck },
       { to: '/student/profile', label: 'Profile', icon: User },
-      { to: '/student/preferences', label: 'Notification Prefs', icon: Settings },
       { to: '/student/notifications', label: 'Notifications', icon: Bell }
     ],
     admin: [
       { to: '/admin/dashboard', label: 'Dashboard', icon: Home },
       { to: '/admin/users', label: 'User Management', icon: Users },
-      { to: '/admin/courses', label: 'Courses', icon: BookOpen },
+      { to: '/admin/offices', label: 'Manage Offices', icon: Building },
+      { to: '/admin/courses', label: 'Courses (CSV)', icon: BookOpen },
+      { to: '/admin/enrollments', label: 'Enrollments', icon: UserCheck },
       { to: '/admin/exams', label: 'Exams', icon: FileText },
-      { to: '/admin/permissions', label: 'Dept Permissions', icon: Shield },
       { to: '/admin/finance', label: 'Finance', icon: DollarSign },
       { to: '/admin/internships', label: 'Internships', icon: Briefcase },
       { to: '/admin/scholarships', label: 'Scholarships', icon: Award },
-      { to: '/admin/directory', label: 'Directory', icon: Contact },
       { to: '/admin/complaints', label: 'Complaints', icon: AlertCircle },
       { to: '/admin/maintenance', label: 'Maintenance', icon: Wrench },
       { to: '/admin/counselling', label: 'Counselling', icon: ShieldCheck },
       { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
       { to: '/admin/audit-logs', label: 'Audit Logs', icon: ShieldAlert },
-      { to: '/admin/settings', label: 'System Settings', icon: Settings },
-      { to: '/admin/profile', label: 'Profile', icon: User },
-      { to: '/admin/notifications', label: 'Notifications', icon: Bell }
+      { to: '/admin/profile', label: 'Profile', icon: User }
     ],
     lecturer: [
       { to: '/lecturer/dashboard', label: 'Dashboard', icon: Home },
@@ -47,14 +45,12 @@ export default function Sidebar({ isOpen, closeMenu }) {
       { to: '/lecturer/exams', label: 'Exams', icon: FileText },
       { to: '/lecturer/announcements', label: 'Announcements', icon: Megaphone },
       { to: '/lecturer/profile', label: 'Profile', icon: User },
-      { to: '/lecturer/preferences', label: 'Notification Prefs', icon: Settings },
       { to: '/lecturer/notifications', label: 'Notifications', icon: Bell }
     ],
     worker: [
       { to: '/worker/dashboard', label: 'Dashboard', icon: Home },
       { to: '/worker/tasks', label: 'My Tasks', icon: Wrench },
       { to: '/worker/profile', label: 'Profile', icon: User },
-      { to: '/worker/preferences', label: 'Notification Prefs', icon: Settings },
       { to: '/worker/notifications', label: 'Notifications', icon: Bell }
     ]
   }

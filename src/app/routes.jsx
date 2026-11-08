@@ -9,22 +9,20 @@ import AdminDashboard from '../modules/administration/pages/AdminDashboard.jsx'
 import LecturerDashboard from '../modules/lecturer/pages/LecturerDashboard.jsx'
 import WorkerDashboard from '../modules/worker/pages/WorkerDashboard.jsx'
 import UserManagement from '../modules/administration/pages/UserManagement.jsx'
+import OfficeManagement from '../modules/administration/pages/OfficeManagement.jsx'
 import CourseManagement from '../modules/administration/pages/CourseManagement.jsx'
-import DepartmentPermissions from '../modules/administration/pages/DepartmentPermissions.jsx'
-import AuditLogsPage from '../modules/administration/pages/AuditLogsPage.jsx'
-import SystemSettingsPage from '../modules/administration/pages/SystemSettingsPage.jsx'
+import EnrollmentManagement from '../modules/administration/pages/EnrollmentManagement.jsx'
 import LostFoundPage from '../modules/lost-and-found/pages/LostFoundPage.jsx'
 import MaintenancePage from '../modules/maintenance/pages/MaintenancePage.jsx'
 import AnnouncementsPage from '../modules/announcements/pages/AnnouncementsPage.jsx'
-import CommunityPage from '../modules/community/pages/CommunityPage.jsx'
 import NotificationsPage from '../modules/notifications/pages/NotificationsPage.jsx'
 import AssignedTasks from '../modules/worker/pages/AssignedTasks.jsx'
-import GroupsPage from '../modules/student/pages/GroupsPage.jsx'
-import EventsPage from '../modules/student/pages/EventsPage.jsx'
 import CounsellingPage from '../modules/counselling/pages/CounsellingPage.jsx'
 import MyClasses from '../modules/lecturer/pages/MyClasses.jsx'
+import LiveLecture from '../modules/lecturer/pages/LiveLecture.jsx'
+import StudentAttendance from '../modules/student/pages/StudentAttendance.jsx'
+import CourseCatalog from '../modules/student/pages/CourseCatalog.jsx'
 import ProfilePage from '../modules/student/pages/ProfilePage.jsx'
-import PreferencesPage from '../modules/student/pages/PreferencesPage.jsx'
 import FinancePage from '../modules/finance/pages/FinancePage.jsx'
 import ComplaintsPage from '../modules/complaints/pages/ComplaintsPage.jsx'
 import InternshipsPage from '../modules/internships/pages/InternshipsPage.jsx'
@@ -47,53 +45,50 @@ export default function AppRoutes() {
 
       <Route element={<DashboardLayout allowedRoles={['student']} />}>
         <Route path="/student/dashboard" element={<StudentDashboard />} />
-        <Route path="/student/community" element={<CommunityPage />} />
+        <Route path="/student/catalog" element={<CourseCatalog />} />
+        <Route path="/student/attendance" element={<StudentAttendance />} />
+        <Route path="/student/directory" element={<DirectoryPage />} />
         <Route path="/student/exams" element={<ExaminationsPage />} />
-        <Route path="/student/groups" element={<GroupsPage />} />
-        <Route path="/student/events" element={<EventsPage />} />
         <Route path="/student/lost-found" element={<LostFoundPage />} />
         <Route path="/student/maintenance" element={<MaintenancePage />} />
         <Route path="/student/finance" element={<FinancePage />} />
         <Route path="/student/internships" element={<InternshipsPage />} />
         <Route path="/student/scholarships" element={<ScholarshipsPage />} />
-        <Route path="/student/directory" element={<DirectoryPage />} />
         <Route path="/student/complaints" element={<ComplaintsPage />} />
         <Route path="/student/counselling" element={<CounsellingPage />} />
         <Route path="/student/announcements" element={<AnnouncementsPage />} />
         <Route path="/student/profile" element={<ProfilePage />} />
-        <Route path="/student/preferences" element={<PreferencesPage />} />
         <Route path="/student/notifications" element={<NotificationsPage />} />
       </Route>
 
       <Route element={<DashboardLayout allowedRoles={['admin']} />}>
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/offices" element={<OfficeManagement />} />
         <Route path="/admin/courses" element={<CourseManagement />} />
+        <Route path="/admin/enrollments" element={<EnrollmentManagement />} />
         <Route path="/admin/exams" element={<ExaminationsPage />} />
-        <Route path="/admin/permissions" element={<DepartmentPermissions />} />
         <Route path="/admin/finance" element={<FinancePage />} />
         <Route path="/admin/internships" element={<InternshipsPage />} />
         <Route path="/admin/scholarships" element={<ScholarshipsPage />} />
-        <Route path="/admin/directory" element={<DirectoryPage />} />
         <Route path="/admin/complaints" element={<ComplaintsPage />} />
         <Route path="/admin/lost-found" element={<LostFoundPage />} />
         <Route path="/admin/maintenance" element={<MaintenancePage />} />
         <Route path="/admin/counselling" element={<CounsellingPage />} />
         <Route path="/admin/announcements" element={<AnnouncementsPage />} />
-        <Route path="/admin/audit-logs" element={<AuditLogsPage />} />
-        <Route path="/admin/settings" element={<SystemSettingsPage />} />
+        <Route path="/admin/directory" element={<DirectoryPage />} />
         <Route path="/admin/profile" element={<ProfilePage />} />
-        <Route path="/admin/preferences" element={<PreferencesPage />} />
         <Route path="/admin/notifications" element={<NotificationsPage />} />
       </Route>
 
       <Route element={<DashboardLayout allowedRoles={['lecturer']} />}>
         <Route path="/lecturer/dashboard" element={<LecturerDashboard />} />
         <Route path="/lecturer/classes" element={<MyClasses />} />
+        {/* THIS WAS THE MISSING ROUTE CAUSING THE "REFRESH" */}
+        <Route path="/lecturer/live-lecture" element={<LiveLecture />} />
         <Route path="/lecturer/exams" element={<ExaminationsPage />} />
         <Route path="/lecturer/announcements" element={<AnnouncementsPage />} />
         <Route path="/lecturer/profile" element={<ProfilePage />} />
-        <Route path="/lecturer/preferences" element={<PreferencesPage />} />
         <Route path="/lecturer/notifications" element={<NotificationsPage />} />
       </Route>
 
@@ -101,7 +96,6 @@ export default function AppRoutes() {
         <Route path="/worker/dashboard" element={<WorkerDashboard />} />
         <Route path="/worker/tasks" element={<AssignedTasks />} />
         <Route path="/worker/profile" element={<ProfilePage />} />
-        <Route path="/worker/preferences" element={<PreferencesPage />} />
         <Route path="/worker/notifications" element={<NotificationsPage />} />
       </Route>
 

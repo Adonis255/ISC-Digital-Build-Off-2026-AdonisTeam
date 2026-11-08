@@ -1,59 +1,75 @@
 import { NavLink } from 'react-router-dom'
-import { LogOut, Home, Users, Wrench, Megaphone, Bell, Search, MessageSquare, Calendar, ShieldCheck, BookOpen, User, Shield, DollarSign, AlertCircle } from 'lucide-react'
+import { LogOut, Home, Users, Wrench, Megaphone, Bell, Search, MessageSquare, Calendar, ShieldCheck, BookOpen, User, Shield, DollarSign, AlertCircle, Briefcase, Award, Contact, FileText, Settings, ShieldAlert } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth.js'
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, closeMenu }) {
   const { profile, role, signOut } = useAuth()
   
   const nav = {
     student: [
       { to: '/student/dashboard', label: 'Dashboard', icon: Home },
       { to: '/student/community', label: 'Community', icon: MessageSquare },
+      { to: '/student/exams', label: 'Exams', icon: FileText },
       { to: '/student/lost-found', label: 'Lost & Found', icon: Search },
       { to: '/student/maintenance', label: 'Maintenance', icon: Wrench },
       { to: '/student/finance', label: 'My Fees', icon: DollarSign },
+      { to: '/student/internships', label: 'Internships', icon: Briefcase },
+      { to: '/student/scholarships', label: 'Scholarships', icon: Award },
+      { to: '/student/directory', label: 'Directory', icon: Contact },
       { to: '/student/complaints', label: 'Complaints', icon: AlertCircle },
       { to: '/student/counselling', label: 'Counselling', icon: ShieldCheck },
       { to: '/student/profile', label: 'Profile', icon: User },
+      { to: '/student/preferences', label: 'Notification Prefs', icon: Settings },
       { to: '/student/notifications', label: 'Notifications', icon: Bell }
     ],
     admin: [
       { to: '/admin/dashboard', label: 'Dashboard', icon: Home },
       { to: '/admin/users', label: 'User Management', icon: Users },
       { to: '/admin/courses', label: 'Courses', icon: BookOpen },
+      { to: '/admin/exams', label: 'Exams', icon: FileText },
       { to: '/admin/permissions', label: 'Dept Permissions', icon: Shield },
       { to: '/admin/finance', label: 'Finance', icon: DollarSign },
+      { to: '/admin/internships', label: 'Internships', icon: Briefcase },
+      { to: '/admin/scholarships', label: 'Scholarships', icon: Award },
+      { to: '/admin/directory', label: 'Directory', icon: Contact },
       { to: '/admin/complaints', label: 'Complaints', icon: AlertCircle },
       { to: '/admin/maintenance', label: 'Maintenance', icon: Wrench },
       { to: '/admin/counselling', label: 'Counselling', icon: ShieldCheck },
       { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
+      { to: '/admin/audit-logs', label: 'Audit Logs', icon: ShieldAlert },
+      { to: '/admin/settings', label: 'System Settings', icon: Settings },
       { to: '/admin/profile', label: 'Profile', icon: User },
       { to: '/admin/notifications', label: 'Notifications', icon: Bell }
     ],
     lecturer: [
       { to: '/lecturer/dashboard', label: 'Dashboard', icon: Home },
       { to: '/lecturer/classes', label: 'My Classes', icon: BookOpen },
+      { to: '/lecturer/exams', label: 'Exams', icon: FileText },
       { to: '/lecturer/announcements', label: 'Announcements', icon: Megaphone },
       { to: '/lecturer/profile', label: 'Profile', icon: User },
+      { to: '/lecturer/preferences', label: 'Notification Prefs', icon: Settings },
       { to: '/lecturer/notifications', label: 'Notifications', icon: Bell }
     ],
     worker: [
       { to: '/worker/dashboard', label: 'Dashboard', icon: Home },
       { to: '/worker/tasks', label: 'My Tasks', icon: Wrench },
       { to: '/worker/profile', label: 'Profile', icon: User },
+      { to: '/worker/preferences', label: 'Notification Prefs', icon: Settings },
       { to: '/worker/notifications', label: 'Notifications', icon: Bell }
     ]
   }
 
   return (
-    <aside className="w-64 bg-navy-900 text-slate-300 flex flex-col h-screen fixed left-0 top-0 z-20">
-      <div className="p-6 border-b border-navy-700">
-        <h1 className="text-xl font-bold text-white">BaratonHub</h1>
-        <p className="text-xs text-brand-400 capitalize">{role} Portal</p>
+    <aside className={`fixed left-0 top-0 z-40 w-64 bg-navy-900 text-slate-300 flex flex-col h-screen transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0`}>
+      <div className="p-6 border-b border-navy-700 flex justify-between items-center">
+        <div>
+          <h1 className="text-xl font-bold text-white">BaratonHub</h1>
+          <p className="text-xs text-brand-400 capitalize">{role} Portal</p>
+        </div>
       </div>
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {(nav[role] || []).map((item) => (
-          <NavLink key={item.label} to={item.to} className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-navy-800'}`}>
+          <NavLink key={item.label} to={item.to} onClick={closeMenu} className={({isActive}) => `flex items-center gap-3 px-3 py-2.5 rounded-lg transition ${isActive ? 'bg-brand-600 text-white' : 'hover:bg-navy-800'}`}>
             <item.icon className="w-5 h-5" /> {item.label}
           </NavLink>
         ))}

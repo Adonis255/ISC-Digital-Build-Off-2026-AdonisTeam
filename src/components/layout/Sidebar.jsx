@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom'
-import { LogOut, Home, Users, Wrench, Megaphone, Bell, Search, MessageSquare, Calendar, ShieldCheck, BookOpen } from 'lucide-react'
+import { LogOut, Home, Users, Wrench, Megaphone, Bell, Search, MessageSquare, Calendar, ShieldCheck, BookOpen, User, Shield, DollarSign, AlertCircle } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth.js'
 
 export default function Sidebar() {
@@ -9,32 +9,38 @@ export default function Sidebar() {
     student: [
       { to: '/student/dashboard', label: 'Dashboard', icon: Home },
       { to: '/student/community', label: 'Community', icon: MessageSquare },
-      { to: '/student/groups', label: 'Study Groups', icon: Users },
-      { to: '/student/events', label: 'Campus Events', icon: Calendar },
       { to: '/student/lost-found', label: 'Lost & Found', icon: Search },
       { to: '/student/maintenance', label: 'Maintenance', icon: Wrench },
+      { to: '/student/finance', label: 'My Fees', icon: DollarSign },
+      { to: '/student/complaints', label: 'Complaints', icon: AlertCircle },
       { to: '/student/counselling', label: 'Counselling', icon: ShieldCheck },
+      { to: '/student/profile', label: 'Profile', icon: User },
       { to: '/student/notifications', label: 'Notifications', icon: Bell }
     ],
     admin: [
       { to: '/admin/dashboard', label: 'Dashboard', icon: Home },
       { to: '/admin/users', label: 'User Management', icon: Users },
       { to: '/admin/courses', label: 'Courses', icon: BookOpen },
-      { to: '/admin/lost-found', label: 'Lost & Found', icon: Search },
+      { to: '/admin/permissions', label: 'Dept Permissions', icon: Shield },
+      { to: '/admin/finance', label: 'Finance', icon: DollarSign },
+      { to: '/admin/complaints', label: 'Complaints', icon: AlertCircle },
       { to: '/admin/maintenance', label: 'Maintenance', icon: Wrench },
       { to: '/admin/counselling', label: 'Counselling', icon: ShieldCheck },
       { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
+      { to: '/admin/profile', label: 'Profile', icon: User },
       { to: '/admin/notifications', label: 'Notifications', icon: Bell }
     ],
     lecturer: [
       { to: '/lecturer/dashboard', label: 'Dashboard', icon: Home },
       { to: '/lecturer/classes', label: 'My Classes', icon: BookOpen },
       { to: '/lecturer/announcements', label: 'Announcements', icon: Megaphone },
+      { to: '/lecturer/profile', label: 'Profile', icon: User },
       { to: '/lecturer/notifications', label: 'Notifications', icon: Bell }
     ],
     worker: [
       { to: '/worker/dashboard', label: 'Dashboard', icon: Home },
       { to: '/worker/tasks', label: 'My Tasks', icon: Wrench },
+      { to: '/worker/profile', label: 'Profile', icon: User },
       { to: '/worker/notifications', label: 'Notifications', icon: Bell }
     ]
   }

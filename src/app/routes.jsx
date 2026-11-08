@@ -9,6 +9,7 @@ import LecturerDashboard from '../modules/lecturer/pages/LecturerDashboard.jsx'
 import WorkerDashboard from '../modules/worker/pages/WorkerDashboard.jsx'
 import UserManagement from '../modules/administration/pages/UserManagement.jsx'
 import CourseManagement from '../modules/administration/pages/CourseManagement.jsx'
+import DepartmentPermissions from '../modules/administration/pages/DepartmentPermissions.jsx'
 import LostFoundPage from '../modules/lost-and-found/pages/LostFoundPage.jsx'
 import MaintenancePage from '../modules/maintenance/pages/MaintenancePage.jsx'
 import AnnouncementsPage from '../modules/announcements/pages/AnnouncementsPage.jsx'
@@ -19,6 +20,9 @@ import GroupsPage from '../modules/student/pages/GroupsPage.jsx'
 import EventsPage from '../modules/student/pages/EventsPage.jsx'
 import CounsellingPage from '../modules/counselling/pages/CounsellingPage.jsx'
 import MyClasses from '../modules/lecturer/pages/MyClasses.jsx'
+import ProfilePage from '../modules/student/pages/ProfilePage.jsx'
+import FinancePage from '../modules/finance/pages/FinancePage.jsx'
+import ComplaintsPage from '../modules/complaints/pages/ComplaintsPage.jsx'
 import { ROLE_HOME } from '../utils/constants.js'
 
 export default function AppRoutes() {
@@ -40,8 +44,11 @@ export default function AppRoutes() {
         <Route path="/student/events" element={<EventsPage />} />
         <Route path="/student/lost-found" element={<LostFoundPage />} />
         <Route path="/student/maintenance" element={<MaintenancePage />} />
+        <Route path="/student/finance" element={<FinancePage />} />
+        <Route path="/student/complaints" element={<ComplaintsPage />} />
         <Route path="/student/counselling" element={<CounsellingPage />} />
         <Route path="/student/announcements" element={<AnnouncementsPage />} />
+        <Route path="/student/profile" element={<ProfilePage />} />
         <Route path="/student/notifications" element={<NotificationsPage />} />
       </Route>
 
@@ -49,10 +56,14 @@ export default function AppRoutes() {
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
         <Route path="/admin/users" element={<UserManagement />} />
         <Route path="/admin/courses" element={<CourseManagement />} />
+        <Route path="/admin/permissions" element={<DepartmentPermissions />} />
+        <Route path="/admin/finance" element={<FinancePage />} />
+        <Route path="/admin/complaints" element={<ComplaintsPage />} />
         <Route path="/admin/lost-found" element={<LostFoundPage />} />
         <Route path="/admin/maintenance" element={<MaintenancePage />} />
         <Route path="/admin/counselling" element={<CounsellingPage />} />
         <Route path="/admin/announcements" element={<AnnouncementsPage />} />
+        <Route path="/admin/profile" element={<ProfilePage />} />
         <Route path="/admin/notifications" element={<NotificationsPage />} />
       </Route>
 
@@ -60,12 +71,14 @@ export default function AppRoutes() {
         <Route path="/lecturer/dashboard" element={<LecturerDashboard />} />
         <Route path="/lecturer/classes" element={<MyClasses />} />
         <Route path="/lecturer/announcements" element={<AnnouncementsPage />} />
+        <Route path="/lecturer/profile" element={<ProfilePage />} />
         <Route path="/lecturer/notifications" element={<NotificationsPage />} />
       </Route>
 
       <Route element={<DashboardLayout allowedRoles={['worker']} />}>
         <Route path="/worker/dashboard" element={<WorkerDashboard />} />
         <Route path="/worker/tasks" element={<AssignedTasks />} />
+        <Route path="/worker/profile" element={<ProfilePage />} />
         <Route path="/worker/notifications" element={<NotificationsPage />} />
       </Route>
 

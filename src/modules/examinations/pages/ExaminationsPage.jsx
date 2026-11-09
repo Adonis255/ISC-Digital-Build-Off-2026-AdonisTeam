@@ -36,7 +36,7 @@ export default function ExaminationsPage() {
 
   useEffect(() => { loadData() }, [role, profile])
 
-  const handleCSVUpload = async (e) => {
+    const handleCSVUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
     setUploading(true)
@@ -50,27 +50,19 @@ export default function ExaminationsPage() {
 
         let success = 0
         let failed = 0
+        let missingCourses = []
 
         for (const row of dataRows) {
           const [code, title, dateStr, location] = row.split(',').map(s => s?.trim())
           if (!code || !title || !dateStr) { failed++; continue }
 
-          // 1. Check if course exists, if not, create it
-          let courseId = null
+          // 1. Check if course exists. Do NOT create it automatically.
           const existingCourse = courses.find(c => c.code.toLowerCase() === code.toLowerCase())
           
-          if (existingCourse) {
-            courseId = existingCourse.id
-          } else {
-            // Auto-create the missing course
-            const { data: newCourse, error: courseErr } = await supabase.from('courses').insert([{ 
-              code: code, 
-              title: title,
-              department: 'General'
-            }]).select()
-            
-            if (courseErr || !newCourse) { failed++; continue }
-            courseId = newCourse[0].id
+          if (!existingCourse) {
+            missingCourses.push(code)
+            failed++
+            continue // Skip this row, but keep going
           }
 
           // 2. Parse Date
@@ -78,7 +70,7 @@ export default function ExaminationsPage() {
 
           // 3. Insert Exam
           const { error: examErr } = await supabase.from('exams').insert([{ 
-            course_id: courseId, 
+            course_id: existingCourse.id, 
             title, 
             exam_date: examDate, 
             location 
@@ -87,13 +79,20 @@ export default function ExaminationsPage() {
           if (examErr) failed++; else success++
         }
 
-        alert(`✅ ${success} exams uploaded successfully!\n❌ ${failed} rows failed (check format).`)
+        // Build the alert message
+        let alertMsg = `✅ ${success} exams uploaded successfully!\n❌ ${failed} rows failed.\n\n`
+        if (missingCourses.length > 0) {
+          const uniqueMissing = [...new Set(missingCourses)]
+          alertMsg += `⚠️ WARNING: The following Course Codes do not exist in your database:\n${uniqueMissing.join(', ')}\n\nPlease upload these courses first using the 'Academic Mgmt' page.`
+        }
+
+        alert(alertMsg)
         loadData()
       } catch (err) {
         alert("Error reading file: " + err.message)
       } finally {
         setUploading(false)
-        e.target.value = null // Reset file input
+        e.target.value = null 
       }
     }
     reader.readAsText(file)

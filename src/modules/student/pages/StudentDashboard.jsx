@@ -11,16 +11,21 @@ export default function StudentDashboard() {
   const [events, setEvents] = useState([])
   const [announcements, setAnnouncements] = useState([])
   const [loading, setLoading] = useState(true)
+  const [bannerUrl, setBannerUrl] = useState('https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/University_of_Eastern_Africa_Baraton_Main_Building.jpg/1200px-University_of_Eastern_Africa_Baraton_Main_Building.jpg')
 
   useEffect(() => {
     if (!profile) return
     const loadDashboard = async () => {
-      // 1. Fetch stats
+      // 1. Fetch Banner
+      const { data: settings } = await supabase.from('system_settings').select('banner_url').eq('id', 1).single()
+      if (settings?.banner_url) setBannerUrl(settings.banner_url)
+
+      // 2. Fetch stats
       const { count: courseCount } = await supabase.from('enrollments').select('*', { count: 'exact', head: true }).eq('student_id', profile.id)
       const { count: eventCount } = await supabase.from('campus_events').select('*', { count: 'exact', head: true }).gte('event_date', new Date().toISOString())
       const { count: noticeCount } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', profile.id).eq('is_read', false)
 
-      // 2. Attendance Calculation
+      // 3. Attendance Calculation
       const { data: records } = await supabase.from('lecture_attendance').select('status').eq('student_id', profile.id)
       const total = records?.length || 0
       const present = records?.filter(r => r.status === 'Present' || r.status === 'Manual').length || 0
@@ -30,7 +35,7 @@ export default function StudentDashboard() {
 
       setStats({ courses: courseCount || 0, events: eventCount || 0, notices: noticeCount || 0, attendanceRate: rate, present, late, absent })
 
-      // 3. Active Lecture
+      // 4. Active Lecture
       const { data: enrollments } = await supabase.from('enrollments').select('course_id').eq('student_id', profile.id)
       const courseIds = enrollments?.map(e => e.course_id) || []
       if (courseIds.length > 0) {
@@ -38,7 +43,7 @@ export default function StudentDashboard() {
         if (s && s.length > 0) setActiveLecture(s[0])
       }
 
-      // 4. Upcoming Events & Announcements
+      // 5. Upcoming Events & Announcements
       const { data: ev } = await supabase.from('campus_events').select('*').gte('event_date', new Date().toISOString()).order('event_date', { ascending: true }).limit(2)
       setEvents(ev || [])
       
@@ -54,9 +59,11 @@ export default function StudentDashboard() {
 
   return (
     <div className="space-y-6 pb-10">
-      
-      {/* HERO BANNER */}
       <div className="bg-gradient-to-r from-brand-700 via-brand-600 to-brand-500 rounded-2xl p-8 relative overflow-hidden flex items-center justify-between shadow-lg">
+        <div className="absolute inset-0 opacity-30">
+          <img src={bannerUrl} alt="Banner" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-brand-900/40"></div>
+        </div>
         <div className="relative z-10">
           <div className="flex items-center gap-4 mb-2">
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm"><BookOpen className="w-6 h-6 text-white" /></div>
@@ -64,11 +71,9 @@ export default function StudentDashboard() {
           </div>
           <p className="text-brand-100 text-lg">Keep learning, keep achieving.</p>
         </div>
-        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/University_of_Eastern_Africa_Baraton_Main_Building.jpg/1200px-University_of_Eastern_Africa_Baraton_Main_Building.jpg" alt="UEAB" className="absolute right-0 top-0 h-full w-1/2 object-cover opacity-40 mask-image-gradient" style={{ maskImage: 'linear-gradient(to right, transparent, black)' }} />
         <div className="absolute right-6 bottom-6 bg-white/20 backdrop-blur-md px-4 py-2 rounded-lg text-white font-bold border border-white/30">UEAB</div>
       </div>
 
-      {/* STAT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link to="/student/catalog" className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition">
           <div className="w-12 h-12 rounded-xl bg-brand-100 text-brand-600 flex items-center justify-center"><BookOpen className="w-6 h-6" /></div>
@@ -89,10 +94,7 @@ export default function StudentDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* LEFT COL: Active Lecture & Events */}
         <div className="lg:col-span-2 space-y-6">
-          {/* ACTIVE LECTURE */}
           {activeLecture ? (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="p-5 border-b border-slate-100 flex items-center gap-2">
@@ -125,7 +127,6 @@ export default function StudentDashboard() {
                   <p className="text-xs text-green-600 mt-1">Location Verified</p>
                   <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center mt-4 shadow-sm"><MapPin className="w-5 h-5 text-green-500" /></div>
                   <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-wider font-bold">Checked in</p>
-                  <p className="font-bold text-slate-800">10:32 AM</p>
                 </div>
               </div>
             </div>
@@ -133,7 +134,6 @@ export default function StudentDashboard() {
              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center text-slate-500">No active lectures right now.</div>
           )}
 
-          {/* UPCOMING EVENTS */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <h2 className="font-bold text-slate-800">Upcoming Events</h2>
@@ -157,9 +157,7 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* RIGHT COL: Attendance Donut & Announcements */}
         <div className="space-y-6">
-          {/* DONUT CHART */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <h2 className="font-bold text-slate-800 mb-6">My Attendance</h2>
             <div className="flex flex-col items-center">
@@ -181,7 +179,6 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* ANNOUNCEMENTS */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
               <h2 className="font-bold text-slate-800">Latest Announcements</h2>
@@ -200,7 +197,6 @@ export default function StudentDashboard() {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   )

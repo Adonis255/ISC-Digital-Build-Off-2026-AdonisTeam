@@ -9,8 +9,8 @@ export default function AdminDashboard() {
   const [time, setTime] = useState(new Date())
   const [stats, setStats] = useState({ students: 0, staff: 0, courses: 0, lectures: 0 })
   const [activities, setActivities] = useState([])
+  const [bannerUrl, setBannerUrl] = useState('https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/University_of_Eastern_Africa_Baraton_Main_Building.jpg/1200px-University_of_Eastern_Africa_Baraton_Main_Building.jpg')
 
-  // Live Clock
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(timer)
@@ -18,6 +18,10 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const fetchData = async () => {
+      // Fetch Banner
+      const { data: settings } = await supabase.from('system_settings').select('banner_url').eq('id', 1).single()
+      if (settings?.banner_url) setBannerUrl(settings.banner_url)
+
       // Fetch stats
       const { count: students } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'student')
       const { count: staff } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).in('role', ['lecturer', 'worker', 'admin'])
@@ -26,7 +30,7 @@ export default function AdminDashboard() {
 
       setStats({ students: students || 0, staff: staff || 0, courses: courses || 0, lectures: lectures || 0 })
 
-      // Fetch recent activities (simulated from real DB)
+      // Fetch activities
       const { data: recentUsers } = await supabase.from('profiles').select('full_name, role, email, created_at').order('created_at', { ascending: false }).limit(2)
       const { data: recentLectures } = await supabase.from('lecture_sessions').select('topic, created_at').order('created_at', { ascending: false }).limit(1)
       const { data: recentMaintenance } = await supabase.from('maintenance_requests').select('title, created_at').order('created_at', { ascending: false }).limit(1)
@@ -44,11 +48,10 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6 pb-10 max-w-[1600px] mx-auto">
-      
-      {/* HERO BANNER */}
       <div className="relative bg-[#1a0b2e] rounded-2xl overflow-hidden flex flex-col md:flex-row items-center justify-between p-8 md:p-12 shadow-2xl">
-        <div className="absolute inset-0 opacity-20">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/University_of_Eastern_Africa_Baraton_Main_Building.jpg/1200px-University_of_Eastern_Africa_Baraton_Main_Building.jpg" alt="Campus" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 opacity-40">
+          <img src={bannerUrl} alt="Campus Banner" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-[#1a0b2e]/70"></div>
         </div>
         <div className="relative z-10 flex-1">
           <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-2">Welcome Back, {profile?.full_name?.split(' ')[0] || 'Admin'}!</h1>
@@ -67,7 +70,6 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* STAT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {[
           { label: 'Total Students', value: stats.students, icon: Users, color: 'text-purple-600', bg: 'bg-purple-100', trend: '+5.2%', spark: 'M0 20 Q 10 10, 20 15 T 40 5 T 60 10 T 80 0 T 100 5' },
@@ -89,7 +91,6 @@ export default function AdminDashboard() {
               <h3 className="text-2xl font-extrabold text-slate-900">{stat.value}</h3>
               <p className="text-xs font-medium text-slate-500 mt-1">{stat.label}</p>
             </div>
-            {/* Tiny Sparkline */}
             <div className="absolute bottom-0 left-0 w-full h-10 opacity-30">
               <svg viewBox="0 0 100 25" className="w-full h-full" preserveAspectRatio="none">
                 <path d={stat.spark} fill="none" stroke="currentColor" strokeWidth="2" className={stat.color} />
@@ -100,8 +101,6 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* PLATFORM OVERVIEW (Chart) */}
         <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h2 className="font-bold text-slate-800 flex items-center gap-2"><BarChart2 className="w-5 h-5 text-brand-600" /> Platform Overview</h2>
@@ -114,9 +113,7 @@ export default function AdminDashboard() {
           </div>
           <div className="relative h-64 w-full">
             <svg viewBox="0 0 400 200" className="w-full h-full" preserveAspectRatio="none">
-              {/* Grid Lines */}
               {[0, 50, 100, 150, 200].map(y => <line key={y} x1="0" y1={y} x2="400" y2={y} stroke="#f1f5f9" strokeWidth="1" />)}
-              {/* Lines */}
               <path d="M0 150 Q 50 120, 100 130 T 200 100 T 300 80 T 400 60" fill="none" stroke="#a855f7" strokeWidth="3" />
               <path d="M0 170 Q 50 150, 100 160 T 200 140 T 300 130 T 400 110" fill="none" stroke="#3b82f6" strokeWidth="3" />
               <path d="M0 190 Q 50 180, 100 185 T 200 170 T 300 160 T 400 150" fill="none" stroke="#22c55e" strokeWidth="3" />
@@ -127,7 +124,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* QUICK ACTIONS */}
         <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <h2 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Activity className="w-5 h-5 text-brand-600" /> Quick Actions</h2>
           <div className="grid grid-cols-2 gap-4">
@@ -147,7 +143,6 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* RECENT ACTIVITY */}
         <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h2 className="font-bold text-slate-800 flex items-center gap-2"><Activity className="w-5 h-5 text-brand-600" /> Recent Activity</h2>
@@ -170,68 +165,6 @@ export default function AdminDashboard() {
             {activities.length === 0 && <p className="text-sm text-slate-500">No recent activity.</p>}
           </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* SYSTEM MODULES STATUS */}
-        <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="font-bold text-slate-800 flex items-center gap-2"><Settings className="w-5 h-5 text-brand-600" /> System Modules Status</h2>
-            <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-md flex items-center gap-1"><ShieldCheck className="w-3 h-3"/> All Systems Operational</span>
-          </div>
-          <div className="flex gap-6 items-center">
-            <div className="flex-1 space-y-3">
-              {['Authentication & Security', 'Attendance System', 'Notifications Service', 'Database Performance', 'Campus Services'].map((mod, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm font-medium text-slate-600">
-                  <div className="w-5 h-5 rounded-full bg-blue-50 flex items-center justify-center shrink-0"><Database className="w-3 h-3 text-blue-500" /></div>
-                  {mod}
-                </div>
-              ))}
-            </div>
-            <div className="relative w-24 h-24 rounded-full flex items-center justify-center shrink-0" style={{ background: 'conic-gradient(#10b981 99.9%, #e2e8f0 0)' }}>
-              <div className="absolute inset-2 bg-white rounded-full flex flex-col items-center justify-center">
-                <span className="text-xl font-bold text-slate-900">99.9%</span>
-                <span className="text-[8px] font-bold text-slate-500 uppercase">Health</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* DEPARTMENT ACCESS */}
-        <div className="lg:col-span-1 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="font-bold text-slate-800 flex items-center gap-2"><Shield className="w-5 h-5 text-brand-600" /> Department Access Control</h2>
-            <select className="text-xs border border-slate-200 rounded-lg px-2 py-1 outline-none font-medium text-slate-600"><option>All Departments</option></select>
-          </div>
-          <div className="space-y-4">
-            {[
-              { name: 'Computer Science', access: 'Full Access', color: 'bg-green-500' },
-              { name: 'Business Administration', access: 'Limited Access', color: 'bg-orange-500' },
-              { name: 'Education', access: 'Full Access', color: 'bg-green-500' },
-              { name: 'Engineering', access: 'Full Access', color: 'bg-green-500' },
-            ].map((dept, i) => (
-              <div key={i} className="flex items-center justify-between text-sm">
-                <span className="font-medium text-slate-700 flex items-center gap-2"><BookOpen className="w-4 h-4 text-slate-400" /> {dept.name}</span>
-                <div className="flex items-center gap-3">
-                  <div className="w-24 h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full ${dept.color}`} style={{ width: dept.access === 'Full Access' ? '100%' : '50%' }}></div></div>
-                  <span className={`text-xs font-bold w-20 text-right ${dept.access === 'Full Access' ? 'text-green-600' : 'text-orange-600'}`}>{dept.access}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* INNOVATION BANNER */}
-        <div className="lg:col-span-1 bg-gradient-to-br from-brand-800 to-brand-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden flex flex-col justify-center">
-          <div className="relative z-10">
-            <h2 className="font-bold text-lg flex items-center gap-2 mb-2"><Megaphone className="w-5 h-5 text-yellow-300" /> BaratonHub Innovation</h2>
-            <p className="text-sm text-brand-100 mb-6 leading-relaxed">Smart. Connected. Student-Centered.<br/><br/>Empowering the Baraton University community through technology and innovation.</p>
-            <button className="bg-white text-brand-800 px-5 py-2 rounded-xl font-bold text-sm hover:bg-slate-50 transition shadow-md">Explore Features &rarr;</button>
-          </div>
-          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/University_of_Eastern_Africa_Baraton_Main_Building.jpg/1200px-University_of_Eastern_Africa_Baraton_Main_Building.jpg" className="absolute right-0 bottom-0 h-full opacity-20 mix-blend-overlay object-cover" alt="bg" />
-        </div>
-
       </div>
     </div>
   )

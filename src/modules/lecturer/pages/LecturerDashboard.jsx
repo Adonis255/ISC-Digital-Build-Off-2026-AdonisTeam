@@ -15,18 +15,23 @@ export default function LecturerDashboard() {
     activeLecture: null,
     recentActivity: []
   })
+  const [bannerUrl, setBannerUrl] = useState('https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/University_of_Eastern_Africa_Baraton_Main_Building.jpg/1200px-University_of_Eastern_Africa_Baraton_Main_Building.jpg')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!profile) return
     const fetchData = async () => {
-      // 1. Fetch Courses
+      // 1. Fetch Banner
+      const { data: settings } = await supabase.from('system_settings').select('banner_url').eq('id', 1).single()
+      if (settings?.banner_url) setBannerUrl(settings.banner_url)
+
+      // 2. Fetch Courses
       const { data: courses } = await supabase.from('courses').select('*, enrollments(count)').eq('lecturer_id', profile.id)
       
       let totalStudents = 0
       courses?.forEach(c => totalStudents += (c.enrollments?.[0]?.count || 0))
 
-      // 2. Fetch Active Lecture
+      // 3. Fetch Active Lecture
       const { data: active } = await supabase.from('lecture_sessions').select('*, courses(*)').eq('lecturer_id', profile.id).eq('is_active', true).limit(1)
       
       let activeLecture = null
@@ -34,17 +39,14 @@ export default function LecturerDashboard() {
       
       if (active && active.length > 0) {
         activeLecture = active[0]
-        // Fetch attendance for this session
         const { data: att } = await supabase.from('lecture_attendance').select('status').eq('session_id', activeLecture.id)
         presentCount = att?.filter(a => a.status === 'Present' || a.status === 'Manual').length || 0
         lateCount = att?.filter(a => a.status === 'Late').length || 0
-        // Assuming leftCount and pendingCount are calculated somehow (left from presence_events, pending from total - present)
-        leftCount = 0 // Placeholder for UI match
+        leftCount = 0
         pendingCount = totalStudents - presentCount - lateCount
       }
 
-      // 3. Calculate overall attendance rate (simplified for demo)
-      const attendanceRate = 94.2 // Mocked for visual accuracy, or calculate from historical data
+      const attendanceRate = 94.2
 
       setData({
         classesCount: courses?.length || 0,
@@ -71,11 +73,10 @@ export default function LecturerDashboard() {
 
   return (
     <div className="space-y-6 pb-10 max-w-[1600px] mx-auto">
-      
-      {/* HERO BANNER */}
       <div className="relative bg-[#1a0b2e] rounded-2xl overflow-hidden flex flex-col md:flex-row items-center justify-between p-8 md:p-10 shadow-2xl">
-        <div className="absolute inset-0 opacity-20">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/University_of_Eastern_Africa_Baraton_Main_Building.jpg/1200px-University_of_Eastern_Africa_Baraton_Main_Building.jpg" alt="Campus" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 opacity-40">
+          <img src={bannerUrl} alt="Campus Banner" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-[#1a0b2e]/70"></div>
         </div>
         <div className="relative z-10 flex items-center gap-6">
           <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20">
@@ -88,7 +89,6 @@ export default function LecturerDashboard() {
         </div>
       </div>
 
-      {/* STAT CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Link to="/lecturer/classes" className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between hover:shadow-md transition">
           <div className="flex items-start gap-4 mb-2">
@@ -124,8 +124,6 @@ export default function LecturerDashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* MY CLASSES LIST */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
           <div className="p-5 border-b border-slate-100 flex justify-between items-center">
             <h2 className="font-bold text-slate-800 flex items-center gap-2"><BookOpen className="w-5 h-5 text-purple-600" /> My Classes</h2>
@@ -158,7 +156,6 @@ export default function LecturerDashboard() {
           </div>
         </div>
 
-        {/* ACTIVE LECTURE */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col">
           <div className="bg-[#4c1d95] p-4 rounded-t-2xl flex justify-between items-center text-white">
             <h2 className="font-bold flex items-center gap-2"><Play className="w-5 h-5" /> Active Lecture – Live Attendance</h2>
@@ -215,9 +212,7 @@ export default function LecturerDashboard() {
         </div>
       </div>
 
-      {/* BOTTOM ROW: Upcoming Lectures & Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-bold text-slate-800 flex items-center gap-2"><Calendar className="w-5 h-5 text-purple-600" /> Upcoming Lectures</h2>
@@ -259,7 +254,6 @@ export default function LecturerDashboard() {
             ))}
           </div>
         </div>
-
       </div>
     </div>
   )

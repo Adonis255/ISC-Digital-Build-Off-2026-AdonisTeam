@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
-import { FileText, Calendar, MapPin, Armchair, Upload } from 'lucide-react'
+import { FileText, Calendar, MapPin, Armchair, Upload, CheckCircle, X } from 'lucide-react'
 
 export default function ExaminationsPage() {
   const { profile, role } = useAuth()
@@ -43,24 +43,58 @@ export default function ExaminationsPage() {
     
     const reader = new FileReader()
     reader.onload = async (event) => {
-      const text = event.target.result
-      const rows = text.split(/\r?\n/).map(row => row.trim()).filter(row => row)
-      const dataRows = rows[0].toLowerCase().includes('code') ? rows.slice(1) : rows
+      try {
+        const text = event.target.result
+        const rows = text.split(/\r?\n/).map(row => row.trim()).filter(row => row)
+        const dataRows = rows[0].toLowerCase().includes('code') ? rows.slice(1) : rows
 
-      let success = 0
-      for (const row of dataRows) {
-        // Format: Course Code, Exam Title, Date (YYYY-MM-DD HH:MM), Location
-        const [code, title, dateStr, location] = row.split(',').map(s => s?.trim())
-        const course = courses.find(c => c.code.toLowerCase() === code.toLowerCase())
-        if (course && title && dateStr) {
+        let success = 0
+        let failed = 0
+
+        for (const row of dataRows) {
+          const [code, title, dateStr, location] = row.split(',').map(s => s?.trim())
+          if (!code || !title || !dateStr) { failed++; continue }
+
+          // 1. Check if course exists, if not, create it
+          let courseId = null
+          const existingCourse = courses.find(c => c.code.toLowerCase() === code.toLowerCase())
+          
+          if (existingCourse) {
+            courseId = existingCourse.id
+          } else {
+            // Auto-create the missing course
+            const { data: newCourse, error: courseErr } = await supabase.from('courses').insert([{ 
+              code: code, 
+              title: title,
+              department: 'General'
+            }]).select()
+            
+            if (courseErr || !newCourse) { failed++; continue }
+            courseId = newCourse[0].id
+          }
+
+          // 2. Parse Date
           const examDate = new Date(dateStr).toISOString()
-          await supabase.from('exams').insert([{ course_id: course.id, title, exam_date: examDate, location }])
-          success++
+
+          // 3. Insert Exam
+          const { error: examErr } = await supabase.from('exams').insert([{ 
+            course_id: courseId, 
+            title, 
+            exam_date: examDate, 
+            location 
+          }])
+
+          if (examErr) failed++; else success++
         }
+
+        alert(`✅ ${success} exams uploaded successfully!\n❌ ${failed} rows failed (check format).`)
+        loadData()
+      } catch (err) {
+        alert("Error reading file: " + err.message)
+      } finally {
+        setUploading(false)
+        e.target.value = null // Reset file input
       }
-      alert(`✅ ${success} exams uploaded successfully!`)
-      setUploading(false)
-      loadData()
     }
     reader.readAsText(file)
   }
@@ -136,12 +170,12 @@ export default function ExaminationsPage() {
         </div>
         <div className="flex gap-2">
           {isAdmin && (
-            <button onClick={() => setShowRoomForm(!showRoomForm)} className="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm">
+            <button onClick={() => setShowRoomForm(!showRoomForm)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm">
               {showRoomForm ? 'Cancel' : 'Manage Rooms'}
             </button>
           )}
           {canPost && (
-            <button onClick={() => setShowExamForm(!showExamForm)} className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm">
+            <button onClick={() => setShowExamForm(!showExamForm)} className="bg-brand-600 text-white px-4 py-2 rounded-xl text-sm">
               {showExamForm ? 'Cancel' : '+ Add Exam'}
             </button>
           )}
@@ -149,46 +183,46 @@ export default function ExaminationsPage() {
       </div>
 
       {isAdmin && (
-        <div className="bg-blue-50 border border-blue-200 p-6 rounded-xl flex items-center justify-between">
+        <div className="bg-blue-50 border border-blue-200 p-6 rounded-2xl flex items-center justify-between">
           <div>
             <h3 className="font-bold text-blue-900 mb-1">Bulk Upload Exams (CSV)</h3>
             <p className="text-sm text-blue-700">Format: <code>Code, Title, Date (YYYY-MM-DD HH:MM), Location</code></p>
           </div>
-          <label className="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-700 flex items-center gap-2">
-            <Upload className="w-4 h-4" /> {uploading ? 'Uploading...' : 'Upload CSV'}
+          <label className="bg-blue-600 text-white px-6 py-2 rounded-xl cursor-pointer hover:bg-blue-700 flex items-center gap-2 font-medium">
+            <Upload className="w-4 h-4" /> {uploading ? 'Uploading...' : 'Choose File'}
             <input type="file" accept=".csv" onChange={handleCSVUpload} disabled={uploading} className="hidden" />
           </label>
         </div>
       )}
 
       {showRoomForm && isAdmin && (
-        <form onSubmit={handleCreateRoom} className="bg-white p-6 rounded-xl border shadow-sm flex gap-4 items-end">
+        <form onSubmit={handleCreateRoom} className="bg-white p-6 rounded-2xl border shadow-sm flex gap-4 items-end">
           <div className="flex-1">
             <label className="block text-sm font-medium mb-1">Room Name</label>
-            <input required placeholder="e.g. Exam Hall A" value={roomForm.name} onChange={e => setRoomForm({...roomForm, name: e.target.value})} className="w-full border p-2 rounded" />
+            <input required placeholder="e.g. Exam Hall A" value={roomForm.name} onChange={e => setRoomForm({...roomForm, name: e.target.value})} className="w-full border p-2 rounded-xl" />
           </div>
           <div className="w-32">
             <label className="block text-sm font-medium mb-1">Capacity</label>
-            <input required type="number" min="1" value={roomForm.capacity} onChange={e => setRoomForm({...roomForm, capacity: e.target.value})} className="w-full border p-2 rounded" />
+            <input required type="number" min="1" value={roomForm.capacity} onChange={e => setRoomForm({...roomForm, capacity: e.target.value})} className="w-full border p-2 rounded-xl" />
           </div>
-          <button type="submit" className="bg-navy-900 text-white px-6 py-2 rounded-lg h-10">Add Room</button>
+          <button type="submit" className="bg-navy-900 text-white px-6 py-2 rounded-xl h-10">Add Room</button>
         </form>
       )}
 
       {showExamForm && canPost && (
-        <form onSubmit={handleCreateExam} className="bg-white p-6 rounded-xl border shadow-sm space-y-4">
+        <form onSubmit={handleCreateExam} className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <select required value={examForm.course_id} onChange={e => setExamForm({...examForm, course_id: e.target.value})} className="w-full border p-2 rounded">
+            <select required value={examForm.course_id} onChange={e => setExamForm({...examForm, course_id: e.target.value})} className="w-full border p-2 rounded-xl">
               <option value="">Select Course...</option>
               {courses.map(c => <option key={c.id} value={c.id}>{c.code} - {c.title}</option>)}
             </select>
-            <input required placeholder="Exam Title (e.g. Final Exam)" value={examForm.title} onChange={e => setExamForm({...examForm, title: e.target.value})} className="w-full border p-2 rounded" />
+            <input required placeholder="Exam Title (e.g. Final Exam)" value={examForm.title} onChange={e => setExamForm({...examForm, title: e.target.value})} className="w-full border p-2 rounded-xl" />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input required type="datetime-local" value={examForm.exam_date} onChange={e => setExamForm({...examForm, exam_date: e.target.value})} className="w-full border p-2 rounded" />
-            <input required placeholder="Location (e.g. Main Hall)" value={examForm.location} onChange={e => setExamForm({...examForm, location: e.target.value})} className="w-full border p-2 rounded" />
+            <input required type="datetime-local" value={examForm.exam_date} onChange={e => setExamForm({...examForm, exam_date: e.target.value})} className="w-full border p-2 rounded-xl" />
+            <input required placeholder="Location (e.g. Main Hall)" value={examForm.location} onChange={e => setExamForm({...examForm, location: e.target.value})} className="w-full border p-2 rounded-xl" />
           </div>
-          <button type="submit" className="bg-brand-600 text-white px-6 py-2 rounded-lg">Publish Exam</button>
+          <button type="submit" className="bg-brand-600 text-white px-6 py-2 rounded-xl">Publish Exam</button>
         </form>
       )}
 
@@ -197,7 +231,7 @@ export default function ExaminationsPage() {
           const mySeat = mySeats.find(s => s.exam_id === exam.id)
           
           return (
-            <div key={exam.id} className="bg-white p-5 rounded-xl border shadow-sm flex flex-col md:flex-row gap-6">
+            <div key={exam.id} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col md:flex-row gap-6">
               <div className="bg-rose-50 text-rose-700 p-4 rounded-xl flex flex-col items-center justify-center min-w-[100px] h-fit">
                 <span className="text-2xl font-bold">{new Date(exam.exam_date).getDate()}</span>
                 <span className="text-sm font-medium uppercase">{new Date(exam.exam_date).toLocaleString('default', { month: 'short' })}</span>
@@ -222,7 +256,7 @@ export default function ExaminationsPage() {
 
                 {isAdmin && (
                   <div className="mt-4 pt-3 border-t">
-                    <button onClick={() => generateSeats(exam.id)} disabled={generating} className="bg-navy-900 text-white px-4 py-2 rounded-lg text-sm disabled:opacity-50">
+                    <button onClick={() => generateSeats(exam.id)} disabled={generating} className="bg-navy-900 text-white px-4 py-2 rounded-xl text-sm disabled:opacity-50">
                       {generating ? 'Generating...' : 'Generate Seat Allocations'}
                     </button>
                   </div>
@@ -231,6 +265,7 @@ export default function ExaminationsPage() {
             </div>
           )
         })}
+        {exams.length === 0 && <p className="text-center py-10 text-slate-500">No exams scheduled yet.</p>}
       </div>
     </div>
   )

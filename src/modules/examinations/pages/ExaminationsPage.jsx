@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
-import { FileText, Calendar, MapPin, Armchair, Upload, CheckCircle, X } from 'lucide-react'
+import { FileText, Calendar, MapPin, Armchair, Upload, Search, Trash2, CheckCircle } from 'lucide-react'
 
 export default function ExaminationsPage() {
   const { profile, role } = useAuth()
@@ -10,12 +10,19 @@ export default function ExaminationsPage() {
   const [rooms, setRooms] = useState([])
   const [mySeats, setMySeats] = useState([])
   
+  const [searchQuery, setSearchQuery] = useState('')
   const [showExamForm, setShowExamForm] = useState(false)
   const [showRoomForm, setShowRoomForm] = useState(false)
   const [examForm, setExamForm] = useState({ course_id: '', title: '', exam_date: '', location: '' })
   const [roomForm, setRoomForm] = useState({ name: '', capacity: 50 })
+  
   const [generating, setGenerating] = useState(false)
+  const [deduplicating, setDeduplicating] = useState(false)
+  
+  // CSV Upload State
   const [uploading, setUploading] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [statusMsg, setStatusMsg] = useState('')
 
   const loadData = async () => {
     const { data: e } = await supabase.from('exams').select('*, courses(code, title)').order('exam_date', { ascending: true })
@@ -36,60 +43,107 @@ export default function ExaminationsPage() {
 
   useEffect(() => { loadData() }, [role, profile])
 
-    const handleCSVUpload = async (e) => {
+  const handleRemoveDuplicates = async () => {
+    if (!window.confirm("This will scan for and remove duplicate exams (same course, title, date, and location). Proceed?")) return
+    setDeduplicating(true)
+    
+    const seen = new Set()
+    const toDelete = []
+    
+    // Sort by created_at so we keep the oldest one
+    const sortedExams = [...exams].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    
+    sortedExams.forEach(exam => {
+      const key = `${exam.course_id}-${exam.title}-${exam.exam_date}-${exam.location}`
+      if (seen.has(key)) {
+        toDelete.push(exam.id)
+      } else {
+        seen.add(key)
+      }
+    })
+
+    if (toDelete.length === 0) {
+      alert("No duplicates found! Your schedule is clean.")
+      setDeduplicating(false)
+      return
+    }
+
+    const { error } = await supabase.from('exams').delete().in('id', toDelete)
+    if (error) alert('Error: ' + error.message)
+    else alert(`✅ Successfully removed ${toDelete.length} duplicate exams!`)
+    
+    setDeduplicating(false)
+    loadData()
+  }
+
+  const handleCSVUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
-    setUploading(true)
     
+    setUploading(true)
+    setProgress(0)
+    setStatusMsg('Reading file...')
+
     const reader = new FileReader()
     reader.onload = async (event) => {
       try {
         const text = event.target.result
         const rows = text.split(/\r?\n/).map(row => row.trim()).filter(row => row)
         const dataRows = rows[0].toLowerCase().includes('code') ? rows.slice(1) : rows
-
+        
+        const total = dataRows.length
+        const batchSize = 50
         let success = 0
         let failed = 0
         let missingCourses = []
 
-        for (const row of dataRows) {
-          const [code, title, dateStr, location] = row.split(',').map(s => s?.trim())
-          if (!code || !title || !dateStr) { failed++; continue }
+        setStatusMsg(`Preparing to upload ${total} exams...`)
 
-          // 1. Check if course exists. Do NOT create it automatically.
-          const existingCourse = courses.find(c => c.code.toLowerCase() === code.toLowerCase())
-          
-          if (!existingCourse) {
-            missingCourses.push(code)
-            failed++
-            continue // Skip this row, but keep going
+        for (let i = 0; i < total; i += batchSize) {
+          const batch = dataRows.slice(i, i + batchSize)
+          const examsToInsert = []
+
+          for (const row of batch) {
+            const [code, title, dateStr, location] = row.split(',').map(s => s?.trim())
+            if (!code || !title || !dateStr) { failed++; continue }
+
+            const existingCourse = courses.find(c => c.code.toLowerCase() === code.toLowerCase())
+            if (!existingCourse) {
+              missingCourses.push(code)
+              failed++
+              continue
+            }
+
+            const examDate = new Date(dateStr).toISOString()
+            examsToInsert.push({
+              course_id: existingCourse.id,
+              title,
+              exam_date: examDate,
+              location
+            })
           }
 
-          // 2. Parse Date
-          const examDate = new Date(dateStr).toISOString()
+          if (examsToInsert.length > 0) {
+            const { error } = await supabase.from('exams').insert(examsToInsert)
+            if (error) failed += examsToInsert.length
+            else success += examsToInsert.length
+          }
 
-          // 3. Insert Exam
-          const { error: examErr } = await supabase.from('exams').insert([{ 
-            course_id: existingCourse.id, 
-            title, 
-            exam_date: examDate, 
-            location 
-          }])
-
-          if (examErr) failed++; else success++
+          const currentProgress = Math.min(Math.round(((i + batchSize) / total) * 100), 100)
+          setProgress(currentProgress)
+          setStatusMsg(`Uploading... ${success} of ${total} completed`)
         }
 
-        // Build the alert message
         let alertMsg = `✅ ${success} exams uploaded successfully!\n❌ ${failed} rows failed.\n\n`
         if (missingCourses.length > 0) {
           const uniqueMissing = [...new Set(missingCourses)]
-          alertMsg += `⚠️ WARNING: The following Course Codes do not exist in your database:\n${uniqueMissing.join(', ')}\n\nPlease upload these courses first using the 'Academic Mgmt' page.`
+          alertMsg += `⚠️ WARNING: The following Course Codes do not exist in your database:\n${uniqueMissing.join(', ')}\n\nPlease upload these courses first using 'Academic Mgmt'.`
         }
-
+        setStatusMsg(`✅ Upload complete! ${success} exams added.`)
         alert(alertMsg)
         loadData()
       } catch (err) {
-        alert("Error reading file: " + err.message)
+        setStatusMsg('❌ Error: ' + err.message)
       } finally {
         setUploading(false)
         e.target.value = null 
@@ -157,6 +211,13 @@ export default function ExaminationsPage() {
   const canPost = role === 'admin' || role === 'lecturer'
   const isAdmin = role === 'admin'
 
+  // Apply Search Filter
+  const filteredExams = exams.filter(exam => 
+    exam.courses?.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    exam.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    exam.location?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex justify-between items-center">
@@ -169,9 +230,14 @@ export default function ExaminationsPage() {
         </div>
         <div className="flex gap-2">
           {isAdmin && (
-            <button onClick={() => setShowRoomForm(!showRoomForm)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm">
-              {showRoomForm ? 'Cancel' : 'Manage Rooms'}
-            </button>
+            <>
+              <button onClick={handleRemoveDuplicates} disabled={deduplicating} className="bg-orange-100 text-orange-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-orange-200 transition">
+                <Trash2 className="w-4 h-4" /> {deduplicating ? 'Scanning...' : 'Remove Duplicates'}
+              </button>
+              <button onClick={() => setShowRoomForm(!showRoomForm)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm">
+                {showRoomForm ? 'Cancel' : 'Manage Rooms'}
+              </button>
+            </>
           )}
           {canPost && (
             <button onClick={() => setShowExamForm(!showExamForm)} className="bg-brand-600 text-white px-4 py-2 rounded-xl text-sm">
@@ -187,12 +253,31 @@ export default function ExaminationsPage() {
             <h3 className="font-bold text-blue-900 mb-1">Bulk Upload Exams (CSV)</h3>
             <p className="text-sm text-blue-700">Format: <code>Code, Title, Date (YYYY-MM-DD HH:MM), Location</code></p>
           </div>
-          <label className="bg-blue-600 text-white px-6 py-2 rounded-xl cursor-pointer hover:bg-blue-700 flex items-center gap-2 font-medium">
-            <Upload className="w-4 h-4" /> {uploading ? 'Uploading...' : 'Choose File'}
-            <input type="file" accept=".csv" onChange={handleCSVUpload} disabled={uploading} className="hidden" />
-          </label>
+          
+          {!uploading ? (
+            <label className="bg-blue-600 text-white px-6 py-2 rounded-xl cursor-pointer hover:bg-blue-700 flex items-center gap-2 font-medium">
+              <Upload className="w-4 h-4" /> Choose File
+              <input type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
+            </label>
+          ) : (
+            <div className="w-1/3 space-y-1">
+              <div className="flex justify-between text-xs font-bold text-blue-800">
+                <span>{statusMsg}</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="w-5 h-5 absolute left-3 top-3 text-slate-400" />
+        <input type="text" placeholder="Search exams by course code, title, or location..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border rounded-xl shadow-sm focus:ring-2 focus:ring-brand-500 outline-none" />
+      </div>
 
       {showRoomForm && isAdmin && (
         <form onSubmit={handleCreateRoom} className="bg-white p-6 rounded-2xl border shadow-sm flex gap-4 items-end">
@@ -226,7 +311,7 @@ export default function ExaminationsPage() {
       )}
 
       <div className="space-y-4">
-        {exams.map(exam => {
+        {filteredExams.map(exam => {
           const mySeat = mySeats.find(s => s.exam_id === exam.id)
           
           return (
@@ -264,7 +349,7 @@ export default function ExaminationsPage() {
             </div>
           )
         })}
-        {exams.length === 0 && <p className="text-center py-10 text-slate-500">No exams scheduled yet.</p>}
+        {filteredExams.length === 0 && <p className="text-center py-10 text-slate-500">No exams found matching your search.</p>}
       </div>
     </div>
   )

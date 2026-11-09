@@ -1,67 +1,268 @@
 import fs from 'fs';
+import path from 'path';
 
-const content = `import { useEffect, useState } from 'react'
+const files = {
+  // 1. Office Management (Add Multiple Images & Description)
+  "src/modules/administration/pages/OfficeManagement.jsx": `import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
-import { BookOpen, Plus, Edit, Trash2, Upload, CheckCircle } from 'lucide-react'
+import { Building, Plus, Trash2, Image as ImageIcon } from 'lucide-react'
 
-export default function CourseManagement() {
+export default function OfficeManagement() {
+  const [offices, setOffices] = useState([])
+  const [form, setForm] = useState({ name: '', building: '', room: '', operating_hours: '', services: '', description: '' })
+  const [imageFiles, setImageFiles] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  const loadOffices = async () => {
+    const { data } = await supabase.from('offices').select('*').order('name')
+    setOffices(data || [])
+  }
+
+  useEffect(() => { loadOffices() }, [])
+
+  const handleCreate = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    
+    // Upload images
+    const uploadedUrls = []
+    for (const file of imageFiles) {
+      const fileName = \`office-\${Math.random()}.\${file.name.split('.').pop()}\`
+      const { error } = await supabase.storage.from('community-media').upload(fileName, file)
+      if (!error) {
+        const { data } = supabase.storage.from('community-media').getPublicUrl(fileName)
+        uploadedUrls.push(data.publicUrl)
+      }
+    }
+
+    const { error } = await supabase.from('offices').insert([{ ...form, image_urls: uploadedUrls }])
+    
+    if (error) alert(error.message)
+    else {
+      setForm({ name: '', building: '', room: '', operating_hours: '', services: '', description: '' })
+      setImageFiles([])
+      loadOffices()
+    }
+    setLoading(false)
+  }
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this office?')) return
+    await supabase.from('offices').delete().eq('id', id)
+    loadOffices()
+  }
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center"><Building className="w-6 h-6" /></div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Office Management</h1>
+          <p className="text-sm text-slate-500">Register campus offices, locations, and images.</p>
+        </div>
+      </div>
+
+      <form onSubmit={handleCreate} className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input required placeholder="Office Name (e.g. Admissions)" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full border p-2 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none" />
+          <input required placeholder="Building (e.g. Main Block)" value={form.building} onChange={e => setForm({...form, building: e.target.value})} className="w-full border p-2 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none" />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input placeholder="Room Number" value={form.room} onChange={e => setForm({...form, room: e.target.value})} className="w-full border p-2 rounded-xl" />
+          <input placeholder="Operating Hours" value={form.operating_hours} onChange={e => setForm({...form, operating_hours: e.target.value})} className="w-full border p-2 rounded-xl" />
+        </div>
+
+        <input placeholder="Services Offered (comma separated)" value={form.services} onChange={e => setForm({...form, services: e.target.value})} className="w-full border p-2 rounded-xl" />
+        <textarea placeholder="Office Description..." value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full border p-2 rounded-xl" rows="2"></textarea>
+        
+        <div>
+          <label className="block text-sm font-medium mb-1">Upload Location Images (Select Multiple)</label>
+          <input type="file" multiple accept="image/*" onChange={e => setImageFiles(Array.from(e.target.files))} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-50 file:text-brand-700" />
+        </div>
+
+        <button type="submit" disabled={loading} className="bg-brand-600 text-white px-6 py-2 rounded-xl disabled:opacity-50">{loading ? 'Saving...' : 'Add Office'}</button>
+      </form>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {offices.map(o => (
+          <div key={o.id} className="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col">
+            {o.image_urls && o.image_urls.length > 0 ? (
+              <div className="grid grid-cols-2 gap-1 h-40">
+                {o.image_urls.slice(0, 4).map((url, i) => (
+                  <img key={i} src={url} alt="Office" className="w-full h-full object-cover" />
+                ))}
+              </div>
+            ) : (
+              <div className="w-full h-40 bg-slate-100 flex items-center justify-center"><ImageIcon className="w-8 h-8 text-slate-300" /></div>
+            )}
+            <div className="p-5 flex-1 flex flex-col">
+              <h3 className="font-bold text-lg text-slate-800">{o.name}</h3>
+              <p className="text-sm text-slate-600 font-medium">{o.building} • {o.room}</p>
+              <p className="text-sm text-slate-500 mt-2 flex-1">{o.services}</p>
+              <button onClick={() => handleDelete(o.id)} className="mt-4 text-red-500 text-sm font-bold self-end hover:underline">Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}`,
+
+  // 2. Directory Page (Display Multiple Images)
+  "src/modules/directory/pages/DirectoryPage.jsx": `import { useEffect, useState } from 'react'
+import { supabase } from '../../../services/supabase/client.js'
+import { Search, Mail, MapPin, Clock, Image as ImageIcon } from 'lucide-react'
+
+export default function DirectoryPage() {
+  const [staff, setStaff] = useState([])
+  const [offices, setOffices] = useState([])
+  const [search, setSearch] = useState('')
+
+  useEffect(() => {
+    (async () => {
+      const { data: s } = await supabase.from('profiles').select('*, offices(name, building, room)').in('role', ['lecturer', 'admin']).order('full_name')
+      setStaff(s || [])
+      const { data: o } = await supabase.from('offices').select('*').order('name')
+      setOffices(o || [])
+    })()
+  }, [])
+
+  const filteredOffices = offices.filter(o => 
+    o.name?.toLowerCase().includes(search.toLowerCase()) || 
+    o.services?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div className="space-y-6 max-w-5xl mx-auto pb-10">
+      <div>
+        <h1 className="text-2xl font-bold">Campus Directory</h1>
+        <p className="text-sm text-slate-500">Find offices, services, and staff contacts.</p>
+      </div>
+
+      <div className="relative">
+        <Search className="w-5 h-5 absolute left-3 top-3 text-slate-400" />
+        <input type="text" placeholder="Search for services (e.g. 'Fee Clearance', 'Admissions')..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border rounded-xl shadow-sm focus:ring-2 focus:ring-brand-500 outline-none" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {filteredOffices.map(office => {
+          const officeStaff = staff.filter(s => s.office_id === office.id)
+          return (
+            <div key={office.id} className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+              
+              {/* Office Images */}
+              {office.image_urls && office.image_urls.length > 0 && (
+                <div className="flex h-48 overflow-x-auto snap-x">
+                  {office.image_urls.map((url, i) => (
+                    <img key={i} src={url} alt="Location" className="w-full h-full object-cover shrink-0 snap-center" />
+                  ))}
+                </div>
+              )}
+
+              <div className="bg-brand-600 text-white p-4">
+                <h3 className="font-bold text-lg">{office.name}</h3>
+                <p className="text-sm text-brand-100 flex items-center gap-1 mt-1"><MapPin className="w-4 h-4" /> {office.building}, {office.room}</p>
+              </div>
+              <div className="p-4 space-y-3">
+                <p className="text-sm text-slate-600 flex items-center gap-2"><Clock className="w-4 h-4 text-slate-400" /> {office.operating_hours || 'Hours not set'}</p>
+                <p className="text-sm text-slate-600"><strong>Services:</strong> {office.services || 'N/A'}</p>
+                {office.description && <p className="text-sm text-slate-500 italic">{office.description}</p>}
+                
+                <div className="mt-4 pt-4 border-t">
+                  <p className="text-xs font-bold text-slate-400 uppercase mb-2">Staff in this office</p>
+                  {officeStaff.length > 0 ? officeStaff.map(s => (
+                    <div key={s.id} className="flex justify-between items-center py-1">
+                      <span className="text-sm font-medium">{s.full_name}</span>
+                      <a href={\`mailto:\${s.email}\`} className="text-brand-600 text-xs hover:underline">Contact</a>
+                    </div>
+                  )) : <p className="text-sm text-slate-500 italic">No staff assigned yet.</p>}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}`,
+
+  // 3. Examinations Page (Search, Deduplication, Progress Bar)
+  "src/modules/examinations/pages/ExaminationsPage.jsx": `import { useEffect, useState } from 'react'
+import { supabase } from '../../../services/supabase/client.js'
+import { useAuth } from '../../../hooks/useAuth.js'
+import { FileText, Calendar, MapPin, Armchair, Upload, Search, Trash2, CheckCircle } from 'lucide-react'
+
+export default function ExaminationsPage() {
+  const { profile, role } = useAuth()
+  const [exams, setExams] = useState([])
   const [courses, setCourses] = useState([])
-  const [lecturers, setLecturers] = useState([])
-  const [showForm, setShowForm] = useState(false)
-  const [editingId, setEditingId] = useState(null)
-  const [form, setForm] = useState({ code: '', title: '', lecturer_id: '', department: '', time_slot: '', location: '' })
-
+  const [rooms, setRooms] = useState([])
+  const [mySeats, setMySeats] = useState([])
+  
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showExamForm, setShowExamForm] = useState(false)
+  const [showRoomForm, setShowRoomForm] = useState(false)
+  const [examForm, setExamForm] = useState({ course_id: '', title: '', exam_date: '', location: '' })
+  const [roomForm, setRoomForm] = useState({ name: '', capacity: 50 })
+  
+  const [generating, setGenerating] = useState(false)
+  const [deduplicating, setDeduplicating] = useState(false)
+  
   // CSV Upload State
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [statusMsg, setStatusMsg] = useState('')
 
   const loadData = async () => {
-    const { data: c } = await supabase.from('courses').select('*, profiles(full_name)').order('code')
-    setCourses(c || [])
-    const { data: l } = await supabase.from('profiles').select('id, full_name, email').eq('role', 'lecturer')
-    setLecturers(l || [])
-  }
-
-  useEffect(() => { loadData() }, [])
-
-  const resetForm = () => {
-    setForm({ code: '', title: '', lecturer_id: '', department: '', time_slot: '', location: '' })
-    setEditingId(null)
-    setShowForm(false)
-  }
-
-  const handleEditClick = (course) => {
-    setForm({
-      code: course.code,
-      title: course.title,
-      lecturer_id: course.lecturer_id || '',
-      department: course.department || '',
-      time_slot: course.time_slot || '',
-      location: course.location || ''
-    })
-    setEditingId(course.id)
-    setShowForm(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this course?')) return
-    const { error } = await supabase.from('courses').delete().eq('id', id)
-    if (error) alert('Error deleting course: ' + error.message)
-    else loadData()
-  }
-
-  const handleManualSubmit = async (e) => {
-    e.preventDefault()
-    const payload = { ...form, lecturer_id: form.lecturer_id || null }
-
-    if (editingId) {
-      await supabase.from('courses').update(payload).eq('id', editingId)
-    } else {
-      await supabase.from('courses').insert([payload])
+    const { data: e } = await supabase.from('exams').select('*, courses(code, title)').order('exam_date', { ascending: true })
+    setExams(e || [])
+    
+    if (role === 'admin' || role === 'lecturer') {
+      const { data: c } = await supabase.from('courses').select('id, code, title')
+      setCourses(c || [])
+      const { data: r } = await supabase.from('exam_rooms').select('*').order('name')
+      setRooms(r || [])
     }
-    resetForm()
+
+    if (role === 'student') {
+      const { data: s } = await supabase.from('seat_allocations').select('*, exam_rooms(name), exams(title, exam_date)').eq('student_id', profile.id)
+      setMySeats(s || [])
+    }
+  }
+
+  useEffect(() => { loadData() }, [role, profile])
+
+  const handleRemoveDuplicates = async () => {
+    if (!window.confirm("This will scan for and remove duplicate exams (same course, title, date, and location). Proceed?")) return
+    setDeduplicating(true)
+    
+    const seen = new Set()
+    const toDelete = []
+    
+    // Sort by created_at so we keep the oldest one
+    const sortedExams = [...exams].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    
+    sortedExams.forEach(exam => {
+      const key = \`\${exam.course_id}-\${exam.title}-\${exam.exam_date}-\${exam.location}\`
+      if (seen.has(key)) {
+        toDelete.push(exam.id)
+      } else {
+        seen.add(key)
+      }
+    })
+
+    if (toDelete.length === 0) {
+      alert("No duplicates found! Your schedule is clean.")
+      setDeduplicating(false)
+      return
+    }
+
+    const { error } = await supabase.from('exams').delete().in('id', toDelete)
+    if (error) alert('Error: ' + error.message)
+    else alert(\`✅ Successfully removed \${toDelete.length} duplicate exams!\`)
+    
+    setDeduplicating(false)
     loadData()
   }
 
@@ -82,48 +283,54 @@ export default function CourseManagement() {
         
         const total = dataRows.length
         const batchSize = 50
-        let successCount = 0
+        let success = 0
+        let failed = 0
+        let missingCourses = []
 
-        setStatusMsg(\`Preparing to upload \${total} courses...\`)
+        setStatusMsg(\`Preparing to upload \${total} exams...\`)
 
-        // Process in batches of 50
         for (let i = 0; i < total; i += batchSize) {
           const batch = dataRows.slice(i, i + batchSize)
-          
-          const coursesToInsert = []
-          for (const row of batch) {
-            const [code, title, lecturer_email, department, time_slot, location] = row.split(',').map(s => s?.trim())
-            if (!code || !title) continue
+          const examsToInsert = []
 
-            let lecturer_id = null
-            if (lecturer_email) {
-              const lecturer = lecturers.find(l => l.email.toLowerCase() === lecturer_email.toLowerCase())
-              if (lecturer) lecturer_id = lecturer.id
+          for (const row of batch) {
+            const [code, title, dateStr, location] = row.split(',').map(s => s?.trim())
+            if (!code || !title || !dateStr) { failed++; continue }
+
+            const existingCourse = courses.find(c => c.code.toLowerCase() === code.toLowerCase())
+            if (!existingCourse) {
+              missingCourses.push(code)
+              failed++
+              continue
             }
 
-            coursesToInsert.push({
-              code, 
-              title, 
-              department: department || 'General', 
-              time_slot, 
-              location, 
-              lecturer_id
+            const examDate = new Date(dateStr).toISOString()
+            examsToInsert.push({
+              course_id: existingCourse.id,
+              title,
+              exam_date: examDate,
+              location
             })
           }
 
-          // Upsert the batch
-          if (coursesToInsert.length > 0) {
-            const { error } = await supabase.from('courses').upsert(coursesToInsert, { onConflict: 'code' })
-            if (!error) successCount += coursesToInsert.length
+          if (examsToInsert.length > 0) {
+            const { error } = await supabase.from('exams').insert(examsToInsert)
+            if (error) failed += examsToInsert.length
+            else success += examsToInsert.length
           }
 
-          // Update progress bar
           const currentProgress = Math.min(Math.round(((i + batchSize) / total) * 100), 100)
           setProgress(currentProgress)
-          setStatusMsg(\`Uploading... \${successCount} of \${total} completed\`)
+          setStatusMsg(\`Uploading... \${success} of \${total} completed\`)
         }
 
-        setStatusMsg(\`✅ Upload complete! \${successCount} courses added/updated.\`)
+        let alertMsg = \`✅ \${success} exams uploaded successfully!\\n❌ \${failed} rows failed.\\n\\n\`
+        if (missingCourses.length > 0) {
+          const uniqueMissing = [...new Set(missingCourses)]
+          alertMsg += \`⚠️ WARNING: The following Course Codes do not exist in your database:\\n\${uniqueMissing.join(', ')}\\n\\nPlease upload these courses first using 'Academic Mgmt'.\`
+        }
+        setStatusMsg(\`✅ Upload complete! \${success} exams added.\`)
+        alert(alertMsg)
         loadData()
       } catch (err) {
         setStatusMsg('❌ Error: ' + err.message)
@@ -135,112 +342,213 @@ export default function CourseManagement() {
     reader.readAsText(file)
   }
 
+  const handleCreateExam = async (e) => {
+    e.preventDefault()
+    await supabase.from('exams').insert([examForm])
+    setExamForm({ course_id: '', title: '', exam_date: '', location: '' })
+    setShowExamForm(false)
+    loadData()
+  }
+
+  const handleCreateRoom = async (e) => {
+    e.preventDefault()
+    await supabase.from('exam_rooms').insert([{ ...roomForm, capacity: parseInt(roomForm.capacity) }])
+    setRoomForm({ name: '', capacity: 50 })
+    setShowRoomForm(false)
+    loadData()
+  }
+
+  const generateSeats = async (examId) => {
+    if (rooms.length === 0) return alert('Please create exam rooms first.')
+    setGenerating(true)
+
+    const { data: students } = await supabase.from('profiles').select('id').eq('role', 'student')
+    if (!students || students.length === 0) {
+      alert('No students found to allocate.')
+      setGenerating(false)
+      return
+    }
+
+    await supabase.from('seat_allocations').delete().eq('exam_id', examId)
+
+    let currentRoomIndex = 0
+    let currentSeat = 1
+    const allocations = []
+
+    for (const student of students) {
+      if (currentSeat > rooms[currentRoomIndex].capacity) {
+        currentRoomIndex++
+        currentSeat = 1
+      }
+      if (currentRoomIndex >= rooms.length) {
+        alert('Warning: Not enough room capacity to seat all students.')
+        break
+      }
+      allocations.push({
+        exam_id: examId, student_id: student.id, room_id: rooms[currentRoomIndex].id, seat_number: currentSeat
+      })
+      currentSeat++
+    }
+
+    if (allocations.length > 0) {
+      await supabase.from('seat_allocations').insert(allocations)
+      alert(\`Successfully allocated seats for \${allocations.length} students!\`)
+    }
+    setGenerating(false)
+    loadData()
+  }
+
+  const canPost = role === 'admin' || role === 'lecturer'
+  const isAdmin = role === 'admin'
+
+  // Apply Search Filter
+  const filteredExams = exams.filter(exam => 
+    exam.courses?.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    exam.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    exam.location?.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center"><BookOpen className="w-6 h-6" /></div>
+          <div className="w-10 h-10 bg-rose-100 text-rose-600 rounded-lg flex items-center justify-center"><FileText className="w-6 h-6" /></div>
           <div>
-            <h1 className="text-2xl font-bold">Course Management</h1>
-            <p className="text-sm text-slate-500">Add, edit, or bulk import courses.</p>
+            <h1 className="text-2xl font-bold">Examination Schedule</h1>
+            <p className="text-sm text-slate-500">Manage exams and seating arrangements.</p>
           </div>
         </div>
-        {!showForm && (
-          <button onClick={() => { resetForm(); setShowForm(true) }} className="bg-brand-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm hover:bg-brand-700 transition">
-            <Plus className="w-4 h-4" /> Add Course Manually
-          </button>
-        )}
+        <div className="flex gap-2">
+          {isAdmin && (
+            <>
+              <button onClick={handleRemoveDuplicates} disabled={deduplicating} className="bg-orange-100 text-orange-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-orange-200 transition">
+                <Trash2 className="w-4 h-4" /> {deduplicating ? 'Scanning...' : 'Remove Duplicates'}
+              </button>
+              <button onClick={() => setShowRoomForm(!showRoomForm)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm">
+                {showRoomForm ? 'Cancel' : 'Manage Rooms'}
+              </button>
+            </>
+          )}
+          {canPost && (
+            <button onClick={() => setShowExamForm(!showExamForm)} className="bg-brand-600 text-white px-4 py-2 rounded-xl text-sm">
+              {showExamForm ? 'Cancel' : '+ Add Exam'}
+            </button>
+          )}
+        </div>
       </div>
 
-      {showForm && (
-        <form onSubmit={handleManualSubmit} className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
-          <div className="flex justify-between items-center border-b pb-2">
-            <h2 className="font-semibold text-lg">{editingId ? 'Edit Course' : 'Add New Course'}</h2>
-            <button type="button" onClick={resetForm} className="text-sm text-slate-500 hover:underline">Cancel</button>
+      {isAdmin && (
+        <div className="bg-blue-50 border border-blue-200 p-6 rounded-2xl flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-blue-900 mb-1">Bulk Upload Exams (CSV)</h3>
+            <p className="text-sm text-blue-700">Format: <code>Code, Title, Date (YYYY-MM-DD HH:MM), Location</code></p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input required placeholder="Course Code (e.g. CS101)" value={form.code} onChange={e => setForm({...form, code: e.target.value})} className="border p-3 rounded-xl" />
-            <input required placeholder="Course Title" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="border p-3 rounded-xl" />
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <input placeholder="Department (e.g. Nursing)" value={form.department} onChange={e => setForm({...form, department: e.target.value})} className="border p-3 rounded-xl" />
-            <input placeholder="Time Slot (e.g. Mon 8AM)" value={form.time_slot} onChange={e => setForm({...form, time_slot: e.target.value})} className="border p-3 rounded-xl" />
-            <input placeholder="Location (e.g. Main Hall)" value={form.location} onChange={e => setForm({...form, location: e.target.value})} className="border p-3 rounded-xl" />
-          </div>
+          {!uploading ? (
+            <label className="bg-blue-600 text-white px-6 py-2 rounded-xl cursor-pointer hover:bg-blue-700 flex items-center gap-2 font-medium">
+              <Upload className="w-4 h-4" /> Choose File
+              <input type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
+            </label>
+          ) : (
+            <div className="w-1/3 space-y-1">
+              <div className="flex justify-between text-xs font-bold text-blue-800">
+                <span>{statusMsg}</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: \`\${progress}%\` }}></div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
-          <select value={form.lecturer_id} onChange={e => setForm({...form, lecturer_id: e.target.value})} className="w-full border p-3 rounded-xl">
-            <option value="">Assign Lecturer (Optional)</option>
-            {lecturers.map(l => <option key={l.id} value={l.id}>{l.full_name}</option>)}
-          </select>
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="w-5 h-5 absolute left-3 top-3 text-slate-400" />
+        <input type="text" placeholder="Search exams by course code, title, or location..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border rounded-xl shadow-sm focus:ring-2 focus:ring-brand-500 outline-none" />
+      </div>
 
-          <button type="submit" className="bg-navy-900 text-white px-6 py-2 rounded-xl font-medium">
-            {editingId ? 'Update Course' : 'Save Course'}
-          </button>
+      {showRoomForm && isAdmin && (
+        <form onSubmit={handleCreateRoom} className="bg-white p-6 rounded-2xl border shadow-sm flex gap-4 items-end">
+          <div className="flex-1">
+            <label className="block text-sm font-medium mb-1">Room Name</label>
+            <input required placeholder="e.g. Exam Hall A" value={roomForm.name} onChange={e => setRoomForm({...roomForm, name: e.target.value})} className="w-full border p-2 rounded-xl" />
+          </div>
+          <div className="w-32">
+            <label className="block text-sm font-medium mb-1">Capacity</label>
+            <input required type="number" min="1" value={roomForm.capacity} onChange={e => setRoomForm({...roomForm, capacity: e.target.value})} className="w-full border p-2 rounded-xl" />
+          </div>
+          <button type="submit" className="bg-navy-900 text-white px-6 py-2 rounded-xl h-10">Add Room</button>
         </form>
       )}
 
-      <div className="bg-blue-50 border border-blue-200 p-6 rounded-2xl">
-        <h3 className="font-bold text-blue-900 mb-2 flex items-center gap-2"><Upload className="w-5 h-5" /> Bulk Import Courses (CSV)</h3>
-        <p className="text-sm text-blue-700 mb-4">Format required: <code>Course Code, Course Title, Lecturer Email, Department, Time, Location</code></p>
-        
-        {!uploading ? (
-          <input type="file" accept=".csv" onChange={handleCSVUpload} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
-        ) : (
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm font-bold text-blue-800">
-              <span>{statusMsg}</span>
-              <span>{progress}%</span>
-            </div>
-            <div className="w-full bg-blue-200 rounded-full h-3">
-              <div className="bg-blue-600 h-3 rounded-full transition-all duration-300" style={{ width: \`\${progress}%\` }}></div>
-            </div>
+      {showExamForm && canPost && (
+        <form onSubmit={handleCreateExam} className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <select required value={examForm.course_id} onChange={e => setExamForm({...examForm, course_id: e.target.value})} className="w-full border p-2 rounded-xl">
+              <option value="">Select Course...</option>
+              {courses.map(c => <option key={c.id} value={c.id}>{c.code} - {c.title}</option>)}
+            </select>
+            <input required placeholder="Exam Title (e.g. Final Exam)" value={examForm.title} onChange={e => setExamForm({...examForm, title: e.target.value})} className="w-full border p-2 rounded-xl" />
           </div>
-        )}
-        
-        {statusMsg && !uploading && (
-          <p className={\`mt-3 text-sm font-bold flex items-center gap-2 \${statusMsg.includes('❌') ? 'text-red-600' : 'text-green-600'}\`}>
-            {statusMsg.includes('❌') ? null : <CheckCircle className="w-4 h-4" />} {statusMsg}
-          </p>
-        )}
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input required type="datetime-local" value={examForm.exam_date} onChange={e => setExamForm({...examForm, exam_date: e.target.value})} className="w-full border p-2 rounded-xl" />
+            <input required placeholder="Location (e.g. Main Hall)" value={examForm.location} onChange={e => setExamForm({...examForm, location: e.target.value})} className="w-full border p-2 rounded-xl" />
+          </div>
+          <button type="submit" className="bg-brand-600 text-white px-6 py-2 rounded-xl">Publish Exam</button>
+        </form>
+      )}
 
-      <div className="bg-white rounded-2xl border overflow-hidden shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 border-b">
-            <tr>
-              <th className="p-4">Code</th>
-              <th className="p-4">Title</th>
-              <th className="p-4">Department</th>
-              <th className="p-4">Lecturer</th>
-              <th className="p-4">Time</th>
-              <th className="p-4">Location</th>
-              <th className="p-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {courses.map(c => (
-              <tr key={c.id} className="border-b hover:bg-slate-50">
-                <td className="p-4 font-bold">{c.code}</td>
-                <td className="p-4">{c.title}</td>
-                <td className="p-4 text-slate-500">{c.department || '-'}</td>
-                <td className="p-4 text-slate-500">{c.profiles?.full_name || 'Unassigned'}</td>
-                <td className="p-4 text-slate-500">{c.time_slot || '-'}</td>
-                <td className="p-4 text-slate-500">{c.location || '-'}</td>
-                <td className="p-4 text-right space-x-2">
-                  <button onClick={() => handleEditClick(c)} className="text-blue-600 hover:bg-blue-50 p-2 rounded-lg" title="Edit"><Edit className="w-4 h-4" /></button>
-                  <button onClick={() => handleDelete(c.id)} className="text-red-600 hover:bg-red-50 p-2 rounded-lg" title="Delete"><Trash2 className="w-4 h-4" /></button>
-                </td>
-              </tr>
-            ))}
-            {courses.length === 0 && <tr><td colSpan="7" className="p-6 text-center text-slate-500">No courses found. Add one manually or upload a CSV.</td></tr>}
-          </tbody>
-        </table>
+      <div className="space-y-4">
+        {filteredExams.map(exam => {
+          const mySeat = mySeats.find(s => s.exam_id === exam.id)
+          
+          return (
+            <div key={exam.id} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col md:flex-row gap-6">
+              <div className="bg-rose-50 text-rose-700 p-4 rounded-xl flex flex-col items-center justify-center min-w-[100px] h-fit">
+                <span className="text-2xl font-bold">{new Date(exam.exam_date).getDate()}</span>
+                <span className="text-sm font-medium uppercase">{new Date(exam.exam_date).toLocaleString('default', { month: 'short' })}</span>
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-lg text-slate-800">{exam.courses?.code} - {exam.title}</h3>
+                <p className="text-slate-600">{exam.courses?.title}</p>
+                <div className="flex flex-wrap gap-4 mt-3 text-sm text-slate-500">
+                  <span className="flex items-center gap-1"><Calendar className="w-4 h-4" /> {new Date(exam.exam_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {exam.location}</span>
+                </div>
+
+                {mySeat && (
+                  <div className="mt-4 bg-green-50 border border-green-200 p-3 rounded-lg flex items-center gap-3">
+                    <Armchair className="w-5 h-5 text-green-600" />
+                    <div>
+                      <p className="text-sm font-bold text-green-800">Your Seat Allocation</p>
+                      <p className="text-xs text-green-700">Room: <strong>{mySeat.exam_rooms?.name}</strong> | Seat: <strong>{mySeat.seat_number}</strong></p>
+                    </div>
+                  </div>
+                )}
+
+                {isAdmin && (
+                  <div className="mt-4 pt-3 border-t">
+                    <button onClick={() => generateSeats(exam.id)} disabled={generating} className="bg-navy-900 text-white px-4 py-2 rounded-xl text-sm disabled:opacity-50">
+                      {generating ? 'Generating...' : 'Generate Seat Allocations'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+        {filteredExams.length === 0 && <p className="text-center py-10 text-slate-500">No exams found matching your search.</p>}
       </div>
     </div>
   )
-}`;
+}`
+};
 
-fs.writeFileSync('src/modules/administration/pages/CourseManagement.jsx', content);
-console.log("✅ Course Management updated with Batching and a Progress Bar!");
+Object.entries(files).forEach(([filePath, content]) => {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(filePath, content);
+});
+console.log("✅ Directory Upload, Exam Search, Deduplication, and Progress Bar implemented!");

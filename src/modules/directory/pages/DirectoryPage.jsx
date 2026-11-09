@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
-import { Search, Mail, MapPin, Clock } from 'lucide-react'
+import { Search, Mail, MapPin, Clock, Image as ImageIcon } from 'lucide-react'
 
 export default function DirectoryPage() {
   const [staff, setStaff] = useState([])
@@ -22,7 +22,7 @@ export default function DirectoryPage() {
   )
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto pb-10">
       <div>
         <h1 className="text-2xl font-bold">Campus Directory</h1>
         <p className="text-sm text-slate-500">Find offices, services, and staff contacts.</p>
@@ -30,15 +30,24 @@ export default function DirectoryPage() {
 
       <div className="relative">
         <Search className="w-5 h-5 absolute left-3 top-3 text-slate-400" />
-        <input type="text" placeholder="Search for services (e.g. 'Fee Clearance', 'Admissions')..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 border rounded-lg shadow-sm" />
+        <input type="text" placeholder="Search for services (e.g. 'Fee Clearance', 'Admissions')..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border rounded-xl shadow-sm focus:ring-2 focus:ring-brand-500 outline-none" />
       </div>
 
-      {/* Offices Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredOffices.map(office => {
           const officeStaff = staff.filter(s => s.office_id === office.id)
           return (
-            <div key={office.id} className="bg-white rounded-xl border shadow-sm overflow-hidden">
+            <div key={office.id} className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+              
+              {/* Office Images */}
+              {office.image_urls && office.image_urls.length > 0 && (
+                <div className="flex h-48 overflow-x-auto snap-x">
+                  {office.image_urls.map((url, i) => (
+                    <img key={i} src={url} alt="Location" className="w-full h-full object-cover shrink-0 snap-center" />
+                  ))}
+                </div>
+              )}
+
               <div className="bg-brand-600 text-white p-4">
                 <h3 className="font-bold text-lg">{office.name}</h3>
                 <p className="text-sm text-brand-100 flex items-center gap-1 mt-1"><MapPin className="w-4 h-4" /> {office.building}, {office.room}</p>
@@ -46,6 +55,7 @@ export default function DirectoryPage() {
               <div className="p-4 space-y-3">
                 <p className="text-sm text-slate-600 flex items-center gap-2"><Clock className="w-4 h-4 text-slate-400" /> {office.operating_hours || 'Hours not set'}</p>
                 <p className="text-sm text-slate-600"><strong>Services:</strong> {office.services || 'N/A'}</p>
+                {office.description && <p className="text-sm text-slate-500 italic">{office.description}</p>}
                 
                 <div className="mt-4 pt-4 border-t">
                   <p className="text-xs font-bold text-slate-400 uppercase mb-2">Staff in this office</p>
@@ -60,28 +70,6 @@ export default function DirectoryPage() {
             </div>
           )
         })}
-      </div>
-
-      {/* All Staff Section */}
-      <div className="mt-10">
-        <h2 className="text-xl font-bold mb-4">All Faculty & Staff</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {staff.map(person => (
-            <div key={person.id} className="bg-white p-4 rounded-xl border shadow-sm flex items-start gap-4 overflow-hidden">
-              <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center font-bold shrink-0">
-                {person.full_name?.charAt(0) || 'U'}
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="font-bold text-slate-800 truncate">{person.full_name}</h3>
-                <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 rounded text-[10px] uppercase font-bold text-slate-600">{person.role}</span>
-                {person.offices && <p className="text-xs text-slate-500 mt-1">{person.offices.name}</p>}
-                <p className="flex items-center gap-1 text-xs text-brand-600 mt-2 truncate">
-                  <Mail className="w-3 h-3" /> <a href={`mailto:${person.email}`}>{person.email}</a>
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   )

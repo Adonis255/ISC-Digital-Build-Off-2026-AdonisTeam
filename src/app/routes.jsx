@@ -83,6 +83,7 @@ export default function AppRoutes() {
         <Route path="/admin/enrollments" element={<EnrollmentManagement />} />
         <Route path="/admin/exams" element={<ExaminationsPage />} />
         <Route path="/admin/community" element={<CommunityPage />} />
+        <Route path="/admin/leaders" element={<LeadersPage />} />
         <Route path="/admin/groups" element={<GroupsPage />} />
         <Route path="/admin/events" element={<EventsPage />} />
         <Route path="/admin/internships" element={<InternshipsPage />} />

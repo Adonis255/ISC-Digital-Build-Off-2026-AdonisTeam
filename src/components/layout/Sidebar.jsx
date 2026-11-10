@@ -1,67 +1,10 @@
-import { useState, useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { LogOut, Home, Users, Wrench, Megaphone, Bell, Search, MessageSquare, Calendar, ShieldCheck, BookOpen, User, Shield, DollarSign, AlertCircle, Briefcase, Award, Contact, FileText, Settings, ShieldAlert, Building, CheckSquare, UserCheck, Library, HelpCircle, Trophy, Play, History, FolderOpen, CalendarDays } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth.js'
-import { supabase } from '../../services/supabase/client.js'
 
 export default function Sidebar({ isOpen, closeMenu }) {
   const { profile, role, signOut } = useAuth()
   
-  // State for real-time badges
-  const [badges, setBadges] = useState({
-    'Notice Board': 0,
-    'Community Feed': 0,
-    'Scholarships': 0,
-    'Internships': 0
-  })
-
-  useEffect(() => {
-    if (!profile) return
-
-    // 1. Listen for new Notice Board posts
-    const noticeChannel = supabase.channel('sidebar-notices')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'community_posts', filter: 'post_type=eq.notice' }, payload => {
-        if (payload.new.author_id !== profile.id) {
-          setBadges(prev => ({ ...prev, 'Notice Board': prev['Notice Board'] + 1 }))
-        }
-      }).subscribe()
-
-    // 2. Listen for new Community posts
-    const commChannel = supabase.channel('sidebar-comm')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'community_posts', filter: 'post_type=eq.community' }, payload => {
-        if (payload.new.author_id !== profile.id) {
-          setBadges(prev => ({ ...prev, 'Community Feed': prev['Community Feed'] + 1 }))
-        }
-      }).subscribe()
-
-    // 3. Listen for new Scholarships
-    const schChannel = supabase.channel('sidebar-sch')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'scholarships' }, payload => {
-        setBadges(prev => ({ ...prev, 'Scholarships': prev['Scholarships'] + 1 }))
-      }).subscribe()
-
-    // 4. Listen for new Internships
-    const intChannel = supabase.channel('sidebar-int')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'internships' }, payload => {
-        setBadges(prev => ({ ...prev, 'Internships': prev['Internships'] + 1 }))
-      }).subscribe()
-
-    return () => {
-      supabase.removeChannel(noticeChannel)
-      supabase.removeChannel(commChannel)
-      supabase.removeChannel(schChannel)
-      supabase.removeChannel(intChannel)
-    }
-  }, [profile])
-
-  // Reset badge when clicking a link
-  const handleNavClick = (label) => {
-    closeMenu()
-    if (badges[label] !== undefined) {
-      setBadges(prev => ({ ...prev, [label]: 0 }))
-    }
-  }
-
   const nav = {
     student: [
       { to: '/student/dashboard', label: 'Dashboard', icon: Home },
@@ -74,6 +17,7 @@ export default function Sidebar({ isOpen, closeMenu }) {
       { to: '/student/events', label: 'Campus Events', icon: CalendarDays },
       { to: '/student/lost-found', label: 'Lost & Found', icon: Search },
       { to: '/student/maintenance', label: 'Maintenance', icon: Wrench },
+      { to: '/student/finance', label: 'My Fees', icon: DollarSign },
       { to: '/student/counselling', label: 'Counselling', icon: ShieldCheck },
       { to: '/student/directory', label: 'Academic Offices', icon: Contact },
       { to: '/student/internships', label: 'Internships', icon: Briefcase },
@@ -87,6 +31,7 @@ export default function Sidebar({ isOpen, closeMenu }) {
       { to: '/admin/notice-board', label: 'Notice Board', icon: Megaphone },
       { to: '/admin/users', label: 'User Management', icon: Users },
       { to: '/admin/departments', label: 'Departments', icon: Building },
+      { to: '/admin/offices', label: 'Manage Offices', icon: Contact },
       { to: '/admin/courses', label: 'Academic Mgmt', icon: BookOpen },
       { to: '/admin/enrollments', label: 'Enrollments', icon: UserCheck },
       { to: '/admin/exams', label: 'Exams', icon: FileText },
@@ -100,9 +45,8 @@ export default function Sidebar({ isOpen, closeMenu }) {
       { to: '/admin/maintenance', label: 'Maintenance', icon: Wrench },
       { to: '/admin/lost-found', label: 'Lost & Found', icon: Search },
       { to: '/admin/counselling', label: 'Counselling', icon: ShieldCheck },
-      { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
-      { to: '/admin/directory', label: 'Directory', icon: Contact },
-      { to: '/admin/profile', label: 'Settings', icon: Settings },
+      { to: '/admin/settings', label: 'System Settings', icon: Settings },
+      { to: '/admin/profile', label: 'My Profile', icon: User },
       { to: '/admin/notifications', label: 'Notifications', icon: Bell }
     ],
     lecturer: [
@@ -111,7 +55,6 @@ export default function Sidebar({ isOpen, closeMenu }) {
       { to: '/lecturer/classes', label: 'My Classes', icon: BookOpen },
       { to: '/lecturer/live-lecture', label: 'Live Attendance', icon: Play },
       { to: '/lecturer/exams', label: 'Exams', icon: FileText },
-      { to: '/lecturer/announcements', label: 'Announcements', icon: Megaphone },
       { to: '/lecturer/profile', label: 'Settings', icon: Settings },
       { to: '/lecturer/notifications', label: 'Notifications', icon: Bell }
     ],
@@ -137,19 +80,11 @@ export default function Sidebar({ isOpen, closeMenu }) {
       
       <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto custom-scrollbar">
         {(nav[role] || []).map((item) => (
-          <NavLink key={item.label} to={item.to} onClick={() => handleNavClick(item.label)} 
+          <NavLink key={item.label} to={item.to} onClick={closeMenu} 
             className={({isActive}) => `flex items-center justify-between px-4 py-3 rounded-lg transition font-medium text-sm ${isActive ? 'bg-brand-600 text-white shadow-lg shadow-brand-900/50' : 'hover:bg-purple-900/50 hover:text-white text-purple-200'}`}>
             <div className="flex items-center gap-3">
               <item.icon className="w-5 h-5" /> {item.label}
             </div>
-            
-            {/* Show Badge if count > 0 */}
-            {badges[item.label] > 0 && (
-              <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
-                {badges[item.label]}
-              </span>
-            )}
-            {item.label === 'Notifications' && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full">3</span>}
           </NavLink>
         ))}
       </nav>

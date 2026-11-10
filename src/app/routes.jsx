@@ -34,6 +34,7 @@ import CommunityPage from '../modules/community/pages/CommunityPage.jsx'
 import NoticeBoardPage from '../modules/community/pages/NoticeBoardPage.jsx'
 import GroupsPage from '../modules/student/pages/GroupsPage.jsx'
 import EventsPage from '../modules/student/pages/EventsPage.jsx'
+import SystemSettingsPage from '../modules/administration/pages/SystemSettingsPage.jsx'
 import { ROLE_HOME } from '../utils/constants.js'
 
 export default function AppRoutes() {
@@ -60,6 +61,7 @@ export default function AppRoutes() {
         <Route path="/student/announcements" element={<AnnouncementsPage />} />
         <Route path="/student/lost-found" element={<LostFoundPage />} />
         <Route path="/student/maintenance" element={<MaintenancePage />} />
+        <Route path="/student/finance" element={<FinancePage />} />
         <Route path="/student/counselling" element={<CounsellingPage />} />
         <Route path="/student/directory" element={<DirectoryPage />} />
         <Route path="/student/internships" element={<InternshipsPage />} />
@@ -89,7 +91,7 @@ export default function AppRoutes() {
         <Route path="/admin/maintenance" element={<MaintenancePage />} />
         <Route path="/admin/counselling" element={<CounsellingPage />} />
         <Route path="/admin/announcements" element={<AnnouncementsPage />} />
-        <Route path="/admin/directory" element={<DirectoryPage />} />
+        <Route path="/admin/settings" element={<SystemSettingsPage />} />
         <Route path="/admin/profile" element={<ProfilePage />} />
         <Route path="/admin/notifications" element={<NotificationsPage />} />
       </Route>

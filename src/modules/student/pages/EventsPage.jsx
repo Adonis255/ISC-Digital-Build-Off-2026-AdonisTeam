@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
-import { Calendar, MapPin, Heart, Image as ImageIcon, Video, X, Play, Plus } from 'lucide-react'
+import { Calendar, MapPin, Heart, Image as ImageIcon, Video, X, Play, Plus, Trash2 } from 'lucide-react'
 
 export default function EventsPage() {
   const { profile, role } = useAuth()
@@ -11,18 +11,15 @@ export default function EventsPage() {
   const [likes, setLikes] = useState([])
   const [showForm, setShowForm] = useState(false)
   
-  // Form State
   const [form, setForm] = useState({ title: '', description: '', event_date: '', location: '', is_recurring: false, recurrence_pattern: '' })
   const [coverImage, setCoverImage] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  // Media Upload State
   const [mediaFile, setMediaFile] = useState(null)
 
   const loadEvents = async () => {
     const { data } = await supabase.from('campus_events').select('*, profiles(full_name)').order('event_date', { ascending: false })
     setEvents(data || [])
-    
     const { data: l } = await supabase.from('event_likes').select('*')
     setLikes(l || [])
   }
@@ -47,14 +44,15 @@ export default function EventsPage() {
       imageUrl = data.publicUrl
     }
 
-    await supabase.from('campus_events').insert([{
-      ...form, created_by: profile.id, image_url: imageUrl
-    }])
-    
+    await supabase.from('campus_events').insert([{ ...form, created_by: profile.id, image_url: imageUrl }])
     setForm({ title: '', description: '', event_date: '', location: '', is_recurring: false, recurrence_pattern: '' })
-    setCoverImage(null)
-    setShowForm(false)
-    setLoading(false)
+    setCoverImage(null); setShowForm(false); setLoading(false); loadEvents()
+  }
+
+  const handleDeleteEvent = async (e, id) => {
+    e.stopPropagation()
+    if (!window.confirm('Admin: Delete this event permanently?')) return
+    await supabase.from('campus_events').delete().eq('id', id)
     loadEvents()
   }
 
@@ -62,35 +60,26 @@ export default function EventsPage() {
     e.preventDefault()
     if (!mediaFile) return
     setLoading(true)
-    
     const isVideo = mediaFile.type.startsWith('video')
     const fileName = `evt-${Math.random()}.${mediaFile.name.split('.').pop()}`
     await supabase.storage.from('community-media').upload(fileName, mediaFile)
-    const { data } = supabase.storage.from('community-media').getPublicUrl(fileName)
+    const { data } = await supabase.storage.from('community-media').getPublicUrl(fileName)
 
-    await supabase.from('event_media').insert([{
-      event_id: selectedEvent.id, user_id: profile.id, media_url: data.publicUrl, media_type: isVideo ? 'video' : 'image'
-    }])
-
-    setMediaFile(null)
-    setLoading(false)
-    loadEventDetails(selectedEvent)
+    await supabase.from('event_media').insert([{ event_id: selectedEvent.id, user_id: profile.id, media_url: data.publicUrl, media_type: isVideo ? 'video' : 'image' }])
+    setMediaFile(null); setLoading(false); loadEventDetails(selectedEvent)
   }
 
   const toggleLike = async (eventId) => {
     const existing = likes.find(l => l.event_id === eventId && l.user_id === profile.id)
-    if (existing) {
-      await supabase.from('event_likes').delete().eq('id', existing.id)
-    } else {
-      await supabase.from('event_likes').insert([{ event_id: eventId, user_id: profile.id }])
-    }
+    if (existing) await supabase.from('event_likes').delete().eq('id', existing.id)
+    else await supabase.from('event_likes').insert([{ event_id: eventId, user_id: profile.id }])
     loadEvents()
   }
 
   const canCreate = role === 'admin' || role === 'student'
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-6 max-w-6xl mx-auto pb-10">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Campus Events</h1>
         {canCreate && (
@@ -128,7 +117,12 @@ export default function EventsPage() {
           const isLiked = likes.some(l => l.event_id === ev.id && l.user_id === profile.id)
           
           return (
-            <div key={ev.id} onClick={() => loadEventDetails(ev)} className="bg-white rounded-xl border shadow-sm overflow-hidden hover:shadow-md cursor-pointer transition flex flex-col group">
+            <div key={ev.id} onClick={() => loadEventDetails(ev)} className="bg-white rounded-xl border shadow-sm overflow-hidden hover:shadow-md cursor-pointer transition flex flex-col group relative">
+              {role === 'admin' && (
+                <button onClick={(e) => handleDeleteEvent(e, ev.id)} className="absolute top-2 right-2 z-10 bg-red-600 text-white p-2 rounded-full shadow-lg hover:bg-red-700 transition" title="Admin Delete">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
               {ev.image_url ? (
                 <img src={ev.image_url} alt={ev.title} className="w-full h-48 object-cover group-hover:scale-105 transition duration-500" />
               ) : (
@@ -153,7 +147,6 @@ export default function EventsPage() {
         })}
       </div>
 
-      {/* EVENT DETAIL MODAL */}
       {selectedEvent && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">

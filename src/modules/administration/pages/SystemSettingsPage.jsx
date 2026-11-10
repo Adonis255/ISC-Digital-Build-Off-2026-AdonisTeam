@@ -74,7 +74,6 @@ export default function SystemSettingsPage() {
         </div>
       )}
 
-      {/* Banner Upload */}
       <div className="bg-white p-6 rounded-2xl border shadow-sm">
         <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><ImageIcon className="w-5 h-5 text-brand-600" /> Platform Banner</h3>
         <p className="text-sm text-slate-500 mb-4">Upload an image to display across all dashboards (Admin, Student, Lecturer).</p>
@@ -92,7 +91,6 @@ export default function SystemSettingsPage() {
         </label>
       </div>
 
-      {/* Registration Toggle */}
       <div className="bg-white p-6 rounded-2xl border shadow-sm flex items-center justify-between">
         <div>
           <h3 className="font-bold text-slate-800">Allow Student Registration</h3>

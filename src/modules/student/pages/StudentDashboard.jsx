@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../../hooks/useAuth.js'
 import { supabase } from '../../../services/supabase/client.js'
-import { BookOpen, CheckCircle, Calendar, Megaphone, MapPin, Clock, ArrowRight, PlayCircle, Trophy } from 'lucide-react'
+import { BookOpen, CheckCircle, Calendar, Megaphone, MapPin, Clock, ArrowRight, PlayCircle, DollarSign } from 'lucide-react'
 
 export default function StudentDashboard() {
   const { profile } = useAuth()
-  const [stats, setStats] = useState({ courses: 0, events: 0, notices: 0, attendanceRate: 0, present: 0, late: 0, absent: 0 })
+  const [stats, setStats] = useState({ courses: 0, events: 0, notices: 0, attendanceRate: 0 })
+  const [feeStats, setFeeStats] = useState({ totalRequired: 0, totalPaid: 0, remaining: 0, progress: 0 })
   const [activeLecture, setActiveLecture] = useState(null)
   const [events, setEvents] = useState([])
   const [announcements, setAnnouncements] = useState([])
@@ -17,36 +18,41 @@ export default function StudentDashboard() {
     if (!profile) return
     const loadDashboard = async () => {
       // 1. Fetch Banner
-      const { data: settings } = await supabase.from('system_settings').select('banner_url').eq('id', 1).single()
+      const { data: settings } = await supabase.from('system_settings').select('banner_url').eq('id', 1).maybeSingle()
       if (settings?.banner_url) setBannerUrl(settings.banner_url)
 
       // 2. Fetch stats
       const { count: courseCount } = await supabase.from('enrollments').select('*', { count: 'exact', head: true }).eq('student_id', profile.id)
-      const { count: eventCount } = await supabase.from('campus_events').select('*', { count: 'exact', head: true }).gte('event_date', new Date().toISOString())
+      
+      // FIXED: Fetch all events, just order by date descending, so past/upcoming both show
+      const { data: ev } = await supabase.from('campus_events').select('*').order('event_date', { ascending: false }).limit(3)
+      setEvents(ev || [])
+
       const { count: noticeCount } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', profile.id).eq('is_read', false)
 
-      // 3. Attendance Calculation
       const { data: records } = await supabase.from('lecture_attendance').select('status').eq('student_id', profile.id)
       const total = records?.length || 0
       const present = records?.filter(r => r.status === 'Present' || r.status === 'Manual').length || 0
-      const late = records?.filter(r => r.status === 'Late').length || 0
-      const absent = total - present - late
       const rate = total > 0 ? Math.round((present / total) * 100) : 0
 
-      setStats({ courses: courseCount || 0, events: eventCount || 0, notices: noticeCount || 0, attendanceRate: rate, present, late, absent })
+      // 3. FEE CALCULATION
+      const { data: payments } = await supabase.from('finance_records').select('amount').eq('student_id', profile.id).eq('status', 'paid')
+      const totalPaid = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
+      const totalRequired = ((courseCount || 0) * 20000) + 5000
+      const remaining = Math.max(0, totalRequired - totalPaid)
+      const feeProgress = totalRequired > 0 ? Math.min(100, Math.round((totalPaid / totalRequired) * 100)) : 0
+
+      setStats({ courses: courseCount || 0, events: ev?.length || 0, notices: noticeCount || 0, attendanceRate: rate })
+      setFeeStats({ totalRequired, totalPaid, remaining, progress: feeProgress })
 
       // 4. Active Lecture
       const { data: enrollments } = await supabase.from('enrollments').select('course_id').eq('student_id', profile.id)
       const courseIds = enrollments?.map(e => e.course_id) || []
       if (courseIds.length > 0) {
-        const { data: s } = await supabase.from('lecture_sessions').select('*, courses(code, title, profiles(full_name)), venue_lat, venue_lng, radius_meters').in('course_id', courseIds).eq('is_active', true).limit(1)
+        const { data: s } = await supabase.from('lecture_sessions').select('*, courses(code, title, profiles(full_name))').in('course_id', courseIds).eq('is_active', true).limit(1)
         if (s && s.length > 0) setActiveLecture(s[0])
       }
 
-      // 5. Upcoming Events & Announcements
-      const { data: ev } = await supabase.from('campus_events').select('*').gte('event_date', new Date().toISOString()).order('event_date', { ascending: true }).limit(2)
-      setEvents(ev || [])
-      
       const { data: an } = await supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(2)
       setAnnouncements(an || [])
 
@@ -71,7 +77,6 @@ export default function StudentDashboard() {
           </div>
           <p className="text-brand-100 text-lg">Keep learning, keep achieving.</p>
         </div>
-        <div className="absolute right-6 bottom-6 bg-white/20 backdrop-blur-md px-4 py-2 rounded-lg text-white font-bold border border-white/30">UEAB</div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -85,7 +90,7 @@ export default function StudentDashboard() {
         </Link>
         <Link to="/student/events" className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition">
           <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center"><Calendar className="w-6 h-6" /></div>
-          <div><p className="text-sm text-slate-500 font-medium">Upcoming Events</p><p className="text-2xl font-bold text-slate-900">{stats.events}</p></div>
+          <div><p className="text-sm text-slate-500 font-medium">Campus Events</p><p className="text-2xl font-bold text-slate-900">{stats.events}</p></div>
         </Link>
         <Link to="/student/notifications" className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 hover:shadow-md transition">
           <div className="w-12 h-12 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center"><Megaphone className="w-6 h-6" /></div>
@@ -111,22 +116,11 @@ export default function StudentDashboard() {
                       <p className="text-slate-500 font-medium">{activeLecture.courses?.code}</p>
                       <p className="text-sm text-slate-600 mt-1">Lecturer: {activeLecture.courses?.profiles?.full_name}</p>
                       <p className="text-sm text-slate-600 mt-1">Topic: {activeLecture.topic}</p>
-                      <div className="flex items-center gap-4 mt-3 text-sm text-slate-500">
-                        <span className="flex items-center gap-1"><MapPin className="w-4 h-4" /> {activeLecture.location || 'Main Hall'}</span>
-                        <span className="flex items-center gap-1"><Clock className="w-4 h-4" /> Started: {new Date(activeLecture.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                      </div>
                     </div>
                   </div>
                   <Link to="/student/attendance" className="mt-6 w-full bg-brand-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-brand-700 transition">
-                    <PlayCircle className="w-5 h-5" /> View Lecture & Check Attendance <ArrowRight className="w-4 h-4" />
+                    <PlayCircle className="w-5 h-5" /> View Lecture & Check Attendance
                   </Link>
-                </div>
-                <div className="bg-green-50 rounded-xl p-6 flex flex-col items-center justify-center text-center border border-green-100 min-w-[200px]">
-                  <CheckCircle className="w-10 h-10 text-green-500 mb-2" />
-                  <p className="font-bold text-green-800">You are in class!</p>
-                  <p className="text-xs text-green-600 mt-1">Location Verified</p>
-                  <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center mt-4 shadow-sm"><MapPin className="w-5 h-5 text-green-500" /></div>
-                  <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-wider font-bold">Checked in</p>
                 </div>
               </div>
             </div>
@@ -136,7 +130,7 @@ export default function StudentDashboard() {
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h2 className="font-bold text-slate-800">Upcoming Events</h2>
+              <h2 className="font-bold text-slate-800">Recent Events</h2>
               <Link to="/student/events" className="text-sm text-brand-600 font-bold flex items-center gap-1 hover:underline">View All <ArrowRight className="w-4 h-4" /></Link>
             </div>
             <div className="p-4 space-y-3">
@@ -146,54 +140,48 @@ export default function StudentDashboard() {
                     <div className="w-10 h-10 rounded-lg bg-brand-100 text-brand-600 flex items-center justify-center shrink-0"><Calendar className="w-5 h-5" /></div>
                     <div>
                       <p className="font-bold text-slate-800">{ev.title}</p>
-                      <p className="text-xs text-slate-500">{new Date(ev.event_date).toLocaleDateString()} • {new Date(ev.event_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                      <p className="text-xs text-slate-500">{new Date(ev.event_date).toLocaleDateString()}</p>
                     </div>
                   </div>
-                  <Link to="/student/events" className="bg-brand-600 text-white px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-brand-700">Join</Link>
                 </div>
               ))}
-              {events.length === 0 && <p className="text-center text-slate-500 py-4">No upcoming events.</p>}
+              {events.length === 0 && <p className="text-center text-slate-500 py-4">No events found.</p>}
             </div>
           </div>
         </div>
 
         <div className="space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 relative overflow-hidden">
+            <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><DollarSign className="w-5 h-5 text-green-600" /> Fee Clearance</h2>
+            
+            <div className="text-center mb-4">
+              <p className="text-sm text-slate-500 font-medium">Remaining Balance</p>
+              <p className={`text-3xl font-extrabold ${feeStats.remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                Ksh {feeStats.remaining.toLocaleString()}
+              </p>
+            </div>
+
+            <div className="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden border">
+              <div className={`h-3 rounded-full transition-all duration-1000 ${feeStats.progress === 100 ? 'bg-green-500' : 'bg-brand-500'}`} style={{ width: `${feeStats.progress}%` }}></div>
+            </div>
+            <div className="flex justify-between text-xs font-bold text-slate-400 mb-4">
+              <span>Paid: {feeStats.progress}%</span>
+              <span>Goal: 100%</span>
+            </div>
+
+            <Link to="/student/finance" className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition">
+              Manage Fees <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
             <h2 className="font-bold text-slate-800 mb-6">My Attendance</h2>
             <div className="flex flex-col items-center">
-              <div className="relative w-40 h-40 rounded-full flex items-center justify-center mb-6" style={{ background: `conic-gradient(#10b981 ${stats.attendanceRate}%, #e2e8f0 0)` }}>
-                <div className="absolute inset-4 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
-                  <span className="text-3xl font-bold text-slate-900">{stats.attendanceRate}%</span>
-                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Overall</span>
+              <div className="relative w-32 h-32 rounded-full flex items-center justify-center mb-6" style={{ background: `conic-gradient(#10b981 ${stats.attendanceRate}%, #e2e8f0 0)` }}>
+                <div className="absolute inset-3 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
+                  <span className="text-2xl font-bold text-slate-900">{stats.attendanceRate}%</span>
                 </div>
               </div>
-              <div className="w-full space-y-3">
-                <div className="flex justify-between items-center text-sm"><span className="flex items-center gap-2 font-medium"><span className="w-2 h-2 rounded-full bg-green-500"></span> Present</span> <span className="font-bold">{stats.present}</span></div>
-                <div className="flex justify-between items-center text-sm"><span className="flex items-center gap-2 font-medium"><span className="w-2 h-2 rounded-full bg-amber-500"></span> Late</span> <span className="font-bold">{stats.late}</span></div>
-                <div className="flex justify-between items-center text-sm"><span className="flex items-center gap-2 font-medium"><span className="w-2 h-2 rounded-full bg-red-500"></span> Absent</span> <span className="font-bold">{stats.absent}</span></div>
-              </div>
-            </div>
-            <div className="mt-6 bg-brand-50 border border-brand-100 rounded-xl p-4 flex items-center gap-3">
-              <Trophy className="w-6 h-6 text-brand-600 shrink-0" />
-              <p className="text-xs text-brand-800 font-medium leading-relaxed">Great! You are meeting the attendance requirement.</p>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h2 className="font-bold text-slate-800">Latest Announcements</h2>
-              <Link to="/student/announcements" className="text-sm text-brand-600 font-bold flex items-center gap-1 hover:underline">View All <ArrowRight className="w-4 h-4" /></Link>
-            </div>
-            <div className="p-4 space-y-4">
-              {announcements.map(a => (
-                <div key={a.id} className="flex gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center shrink-0"><Megaphone className="w-5 h-5" /></div>
-                  <div>
-                    <p className="font-bold text-sm text-slate-800">{a.title}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{new Date(a.created_at).toLocaleString()}</p>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>

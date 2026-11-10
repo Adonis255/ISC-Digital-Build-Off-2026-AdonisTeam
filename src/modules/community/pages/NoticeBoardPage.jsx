@@ -19,6 +19,7 @@ export default function NoticeBoardPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [expandedComments, setExpandedComments] = useState({})
   const [commentText, setCommentText] = useState({})
+  const [bannerUrl, setBannerUrl] = useState('https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/University_of_Eastern_Africa_Baraton_Main_Building.jpg/1200px-University_of_Eastern_Africa_Baraton_Main_Building.jpg')
 
   const [newPost, setNewPost] = useState({ title: '', content: '', category: 'General', urgency: 'Normal', expiry_date: '' })
   const [imageFile, setImageFile] = useState(null)
@@ -26,6 +27,10 @@ export default function NoticeBoardPage() {
 
   const loadData = async () => {
     setLoading(true)
+    // Fetch Banner
+    const { data: settings } = await supabase.from('system_settings').select('banner_url').eq('id', 1).maybeSingle()
+    if (settings?.banner_url) setBannerUrl(settings.banner_url)
+
     const { data: p } = await supabase.from('community_posts').select('*, profiles(full_name, role, avatar_url)').eq('post_type', 'notice').order('created_at', { ascending: false })
     setPosts(p || [])
     
@@ -119,10 +124,8 @@ export default function NoticeBoardPage() {
   const filteredPosts = posts.filter(p => {
     const matchesTab = activeTab === 'All' || p.category === activeTab
     const matchesSearch = p.title?.toLowerCase().includes(searchQuery.toLowerCase()) || p.body?.toLowerCase().includes(searchQuery.toLowerCase())
-    
     const isPast = p.expiry_date && p.expiry_date < today
     const matchesFilter = noticeFilter === 'past' ? isPast : !isPast
-
     return matchesTab && matchesSearch && matchesFilter
   })
 
@@ -146,9 +149,12 @@ export default function NoticeBoardPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
+      
+      {/* BANNER */}
       <div className="relative bg-[#1a0b2e] rounded-2xl overflow-hidden flex flex-col md:flex-row items-center justify-between p-8 md:p-12 shadow-2xl">
-        <div className="absolute inset-0 opacity-20">
-          <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/University_of_Eastern_Africa_Baraton_Main_Building.jpg/1200px-University_of_Eastern_Africa_Baraton_Main_Building.jpg" alt="Campus" className="w-full h-full object-cover" />
+        <div className="absolute inset-0 opacity-40">
+          <img src={bannerUrl} alt="Campus Banner" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-[#1a0b2e]/70"></div>
         </div>
         <div className="relative z-10">
           <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-2 flex items-center gap-3">
@@ -162,9 +168,7 @@ export default function NoticeBoardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
         <div className="lg:col-span-2 space-y-4">
-          
           <div className="flex flex-wrap gap-4 justify-between items-center">
             <div className="flex gap-2 bg-white p-1.5 rounded-xl border border-slate-200">
               <button onClick={() => setNoticeFilter('current')} className={`px-6 py-2 rounded-lg text-sm font-bold transition ${noticeFilter === 'current' ? 'bg-brand-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50'}`}>Current</button>
@@ -194,8 +198,6 @@ export default function NoticeBoardPage() {
             
             return (
               <div key={post.id} className={`bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col ${isPast ? 'opacity-70 border-slate-300' : 'border-slate-200'}`}>
-                
-                {/* Card Header */}
                 <div className="p-5 flex justify-between items-start gap-4">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-lg shrink-0">
@@ -222,7 +224,6 @@ export default function NoticeBoardPage() {
                   </div>
                 </div>
 
-                {/* Card Body */}
                 <div className="px-5 pb-4">
                   <div className="flex flex-wrap items-center gap-2 mb-2">
                     <h2 className="text-xl font-bold text-slate-900 leading-tight">{post.title || 'Untitled Notice'}</h2>
@@ -242,7 +243,6 @@ export default function NoticeBoardPage() {
                   )}
                 </div>
 
-                {/* Media (Full Width Below Text) */}
                 {post.media_url && (
                   <div className="border-y border-slate-100 bg-slate-50">
                     {post.media_type === 'video' ? (
@@ -253,7 +253,6 @@ export default function NoticeBoardPage() {
                   </div>
                 )}
 
-                {/* Action Bar */}
                 <div className="p-4 flex items-center justify-between text-sm font-medium text-slate-500 bg-slate-50/50">
                   <div className="flex items-center gap-4">
                     <button onClick={() => toggleLike(post.id)} className={`flex items-center gap-2 transition ${isLiked ? 'text-red-500' : 'hover:text-brand-600'}`}>
@@ -268,7 +267,6 @@ export default function NoticeBoardPage() {
                   </button>
                 </div>
 
-                {/* Comments Section */}
                 {isExpanded && (
                   <div className="p-5 border-t border-slate-100 space-y-3 bg-white">
                     {postComments.map(c => (
@@ -290,13 +288,10 @@ export default function NoticeBoardPage() {
             )
           })}
           {filteredPosts.length === 0 && !loading && (
-             <div className="bg-white rounded-2xl border border-dashed p-10 text-center text-slate-500">
-               No {noticeFilter} notices found.
-             </div>
+             <div className="bg-white rounded-2xl border border-dashed p-10 text-center text-slate-500">No {noticeFilter} notices found.</div>
           )}
         </div>
 
-        {/* Right Sidebar */}
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4"><TrendingUp className="w-5 h-5 text-orange-500" /> Trending Notices</h3>

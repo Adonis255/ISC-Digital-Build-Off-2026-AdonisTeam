@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
-import { Briefcase, Calendar, Building, CheckCircle, FileText } from 'lucide-react'
+import { Briefcase, Calendar, Building, Clock, CheckCircle, FileText, Image as ImageIcon } from 'lucide-react'
 
 export default function InternshipsPage() {
   const { profile, role } = useAuth()
   const [internships, setInternships] = useState([])
   const [myApps, setMyApps] = useState([])
-  const [allApps, setAllApps] = useState([]) // For admin
+  const [allApps, setAllApps] = useState([])
   
-  // Admin Create Form
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ title: '', company: '', description: '', deadline: '' })
+  const [form, setForm] = useState({ title: '', company: '', description: '', deadline: '', duration: '', requirements: '' })
+  const [imageFile, setImageFile] = useState(null)
+  const [loading, setLoading] = useState(false)
   
-  // Student Apply Form
   const [applyingTo, setApplyingTo] = useState(null)
   const [cvFile, setCvFile] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -26,7 +26,6 @@ export default function InternshipsPage() {
       const { data: a } = await supabase.from('internship_applications').select('*').eq('student_id', profile.id)
       setMyApps(a || [])
     }
-
     if (role === 'admin') {
       const { data: aa } = await supabase.from('internship_applications').select('*, profiles(full_name, email), internships(title, company)').order('created_at', { ascending: false })
       setAllApps(aa || [])
@@ -37,39 +36,35 @@ export default function InternshipsPage() {
 
   const handleCreate = async (e) => {
     e.preventDefault()
-    await supabase.from('internships').insert([{ ...form, created_by: profile.id }])
-    setForm({ title: '', company: '', description: '', deadline: '' })
-    setShowForm(false)
-    loadData()
+    setLoading(true)
+    let imageUrl = null
+    if (imageFile) {
+      const fileName = `intern-${Math.random()}.${imageFile.name.split('.').pop()}`
+      await supabase.storage.from('community-media').upload(fileName, imageFile)
+      const { data } = supabase.storage.from('community-media').getPublicUrl(fileName)
+      imageUrl = data.publicUrl
+    }
+    await supabase.from('internships').insert([{ ...form, created_by: profile.id, image_url: imageUrl }])
+    setForm({ title: '', company: '', description: '', deadline: '', duration: '', requirements: '' })
+    setImageFile(null); setShowForm(false); setLoading(false); loadData()
   }
 
   const handleApply = async (e) => {
     e.preventDefault()
     if (!cvFile) return alert('Please upload your CV (PDF).')
     setUploading(true)
-
-    // 1. Upload CV to Storage
     const fileName = `cv-${profile.id}-${Date.now()}.pdf`
     const { error: uploadErr } = await supabase.storage.from('cvs').upload(fileName, cvFile)
     if (uploadErr) { alert(uploadErr.message); setUploading(false); return }
 
     const { data: { publicUrl } } = supabase.storage.from('cvs').getPublicUrl(fileName)
-
-    // 2. Save Application to DB
     const { error: dbErr } = await supabase.from('internship_applications').insert([{
-      internship_id: applyingTo.id,
-      student_id: profile.id,
-      cv_url: publicUrl
+      internship_id: applyingTo.id, student_id: profile.id, cv_url: publicUrl
     }])
 
     setUploading(false)
     if (dbErr) alert(dbErr.message)
-    else {
-      alert('Application submitted successfully!')
-      setApplyingTo(null)
-      setCvFile(null)
-      loadData()
-    }
+    else { alert('Application submitted successfully!'); setApplyingTo(null); setCvFile(null); loadData() }
   }
 
   const updateAppStatus = async (appId, status) => {
@@ -80,7 +75,7 @@ export default function InternshipsPage() {
   const isAdmin = role === 'admin'
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-6 max-w-5xl mx-auto pb-10">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center"><Briefcase className="w-6 h-6" /></div>
@@ -90,21 +85,32 @@ export default function InternshipsPage() {
           </div>
         </div>
         {isAdmin && (
-          <button onClick={() => setShowForm(!showForm)} className="bg-brand-600 text-white px-4 py-2 rounded-lg">
+          <button onClick={() => setShowForm(!showForm)} className="bg-brand-600 text-white px-4 py-2 rounded-xl">
             {showForm ? 'Cancel' : '+ Post Internship'}
           </button>
         )}
       </div>
 
       {showForm && isAdmin && (
-        <form onSubmit={handleCreate} className="bg-white p-6 rounded-xl border shadow-sm space-y-4">
+        <form onSubmit={handleCreate} className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input required placeholder="Job Title" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full border p-2 rounded" />
-            <input required placeholder="Company Name" value={form.company} onChange={e => setForm({...form, company: e.target.value})} className="w-full border p-2 rounded" />
+            <input required placeholder="Job Title" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full border p-2 rounded-xl" />
+            <input required placeholder="Company Name" value={form.company} onChange={e => setForm({...form, company: e.target.value})} className="w-full border p-2 rounded-xl" />
           </div>
-          <textarea required placeholder="Description and requirements..." value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full border p-2 rounded" rows="3"></textarea>
-          <input type="date" value={form.deadline} onChange={e => setForm({...form, deadline: e.target.value})} className="border p-2 rounded" />
-          <button type="submit" className="bg-brand-600 text-white px-6 py-2 rounded-lg">Publish Opportunity</button>
+          <textarea required placeholder="Description and responsibilities..." value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full border p-2 rounded-xl" rows="3"></textarea>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input placeholder="Duration (e.g. 3 Months)" value={form.duration} onChange={e => setForm({...form, duration: e.target.value})} className="border p-2 rounded-xl" />
+            <input placeholder="Requirements (e.g. CGPA > 3.0)" value={form.requirements} onChange={e => setForm({...form, requirements: e.target.value})} className="border p-2 rounded-xl" />
+            <input type="date" value={form.deadline} onChange={e => setForm({...form, deadline: e.target.value})} className="border p-2 rounded-xl" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Company Logo / Cover Image</label>
+            <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files[0])} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-50 file:text-brand-700" />
+          </div>
+
+          <button type="submit" disabled={loading} className="bg-brand-600 text-white px-6 py-2 rounded-xl">Publish</button>
         </form>
       )}
 
@@ -116,46 +122,47 @@ export default function InternshipsPage() {
             <input required type="file" accept=".pdf" onChange={e => setCvFile(e.target.files[0])} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-indigo-100 file:text-indigo-700" />
           </div>
           <div className="flex gap-2">
-            <button type="submit" disabled={uploading} className="bg-indigo-600 text-white px-6 py-2 rounded-lg disabled:opacity-50">
-              {uploading ? 'Uploading & Submitting...' : 'Submit Application'}
-            </button>
+            <button type="submit" disabled={uploading} className="bg-indigo-600 text-white px-6 py-2 rounded-lg disabled:opacity-50">{uploading ? 'Uploading...' : 'Submit Application'}</button>
             <button type="button" onClick={() => setApplyingTo(null)} className="bg-slate-200 px-4 py-2 rounded-lg">Cancel</button>
           </div>
         </form>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {internships.map(item => {
           const hasApplied = myApps.find(a => a.internship_id === item.id)
           
           return (
-            <div key={item.id} className="bg-white p-6 rounded-xl border shadow-sm flex flex-col hover:shadow-md transition">
-              <h3 className="font-bold text-lg text-slate-800">{item.title}</h3>
-              <div className="flex items-center gap-1 text-slate-600 text-sm mt-1 mb-3">
-                <Building className="w-4 h-4" /> {item.company}
-              </div>
-              <p className="text-slate-600 text-sm flex-1 whitespace-pre-wrap">{item.description}</p>
-              
-              {item.deadline && (
-                <div className="mt-4 pt-3 border-t flex items-center gap-2 text-xs font-medium text-red-600">
-                  <Calendar className="w-4 h-4" /> Apply before: {new Date(item.deadline).toLocaleDateString()}
-                </div>
+            <div key={item.id} className="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col hover:shadow-md transition">
+              {item.image_url ? (
+                <img src={item.image_url} alt={item.title} className="w-full h-40 object-cover" />
+              ) : (
+                <div className="w-full h-40 bg-indigo-50 flex items-center justify-center"><ImageIcon className="w-10 h-10 text-indigo-300" /></div>
               )}
+              <div className="p-5 flex-1 flex flex-col">
+                <h3 className="font-bold text-lg text-slate-800">{item.title}</h3>
+                <div className="flex items-center gap-1 text-slate-600 text-sm mt-1 mb-2"><Building className="w-4 h-4" /> {item.company}</div>
+                <p className="text-slate-600 text-sm flex-1 whitespace-pre-wrap">{item.description}</p>
+                
+                <div className="mt-3 space-y-1 text-xs text-slate-500">
+                  {item.duration && <p className="flex items-center gap-1"><Clock className="w-3 h-3" /> {item.duration}</p>}
+                  {item.requirements && <p className="flex items-center gap-1"><CheckCircle className="w-3 h-3" /> {item.requirements}</p>}
+                  {item.deadline && <p className="flex items-center gap-1 text-red-500 font-bold"><Calendar className="w-3 h-3" /> Apply before: {new Date(item.deadline).toLocaleDateString()}</p>}
+                </div>
 
-              {role === 'student' && (
-                <div className="mt-4 pt-3 border-t">
-                  {hasApplied ? (
-                    <div className="flex items-center justify-between bg-green-50 p-3 rounded-lg border border-green-200">
-                      <span className="text-sm font-bold text-green-800 flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Applied</span>
-                      <span className="text-xs font-bold uppercase bg-green-200 text-green-900 px-2 py-1 rounded">{hasApplied.status}</span>
-                    </div>
-                  ) : (
-                    <button onClick={() => setApplyingTo(item)} className="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition">
-                      Apply Now
-                    </button>
-                  )}
-                </div>
-              )}
+                {role === 'student' && (
+                  <div className="mt-4 pt-3 border-t">
+                    {hasApplied ? (
+                      <div className="flex items-center justify-between bg-green-50 p-3 rounded-lg border border-green-200">
+                        <span className="text-sm font-bold text-green-800 flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Applied</span>
+                        <span className="text-xs font-bold uppercase bg-green-200 text-green-900 px-2 py-1 rounded">{hasApplied.status}</span>
+                      </div>
+                    ) : (
+                      <button onClick={() => setApplyingTo(item)} className="w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition">Apply Now</button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           )
         })}

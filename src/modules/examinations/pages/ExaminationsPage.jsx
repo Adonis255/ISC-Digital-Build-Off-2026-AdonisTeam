@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
-import { FileText, Calendar, MapPin, Armchair, Upload, Search, Trash2, CheckCircle } from 'lucide-react'
+import { FileText, Calendar, MapPin, Armchair, Upload, Search, Trash2 } from 'lucide-react'
 
 export default function ExaminationsPage() {
   const { profile, role } = useAuth()
@@ -18,11 +18,6 @@ export default function ExaminationsPage() {
   
   const [generating, setGenerating] = useState(false)
   const [deduplicating, setDeduplicating] = useState(false)
-  
-  // CSV Upload State
-  const [uploading, setUploading] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [statusMsg, setStatusMsg] = useState('')
 
   const loadData = async () => {
     const { data: e } = await supabase.from('exams').select('*, courses(code, title)').order('exam_date', { ascending: true })
@@ -44,112 +39,70 @@ export default function ExaminationsPage() {
   useEffect(() => { loadData() }, [role, profile])
 
   const handleRemoveDuplicates = async () => {
-    if (!window.confirm("This will scan for and remove duplicate exams (same course, title, date, and location). Proceed?")) return
+    if (!window.confirm("Remove duplicate exams?")) return
     setDeduplicating(true)
-    
     const seen = new Set()
     const toDelete = []
-    
-    // Sort by created_at so we keep the oldest one
     const sortedExams = [...exams].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
     
     sortedExams.forEach(exam => {
       const key = `${exam.course_id}-${exam.title}-${exam.exam_date}-${exam.location}`
-      if (seen.has(key)) {
-        toDelete.push(exam.id)
-      } else {
-        seen.add(key)
-      }
+      if (seen.has(key)) toDelete.push(exam.id)
+      else seen.add(key)
     })
 
     if (toDelete.length === 0) {
-      alert("No duplicates found! Your schedule is clean.")
-      setDeduplicating(false)
-      return
+      alert("No duplicates found.")
+    } else {
+      await supabase.from('exams').delete().in('id', toDelete)
+      alert(`Removed ${toDelete.length} duplicate exams.`)
     }
-
-    const { error } = await supabase.from('exams').delete().in('id', toDelete)
-    if (error) alert('Error: ' + error.message)
-    else alert(`✅ Successfully removed ${toDelete.length} duplicate exams!`)
-    
     setDeduplicating(false)
     loadData()
   }
 
-  const handleCSVUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    
-    setUploading(true)
-    setProgress(0)
-    setStatusMsg('Reading file...')
+  // FIXED: Only allocate to students enrolled in the specific course
+  const generateSeats = async (examId, courseId) => {
+    if (rooms.length === 0) return alert('Please create exam rooms first.')
+    setGenerating(true)
 
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      try {
-        const text = event.target.result
-        const rows = text.split(/\r?\n/).map(row => row.trim()).filter(row => row)
-        const dataRows = rows[0].toLowerCase().includes('code') ? rows.slice(1) : rows
-        
-        const total = dataRows.length
-        const batchSize = 50
-        let success = 0
-        let failed = 0
-        let missingCourses = []
+    // 1. Fetch ONLY students enrolled in this course
+    const { data: enrollments } = await supabase.from('enrollments').select('student_id').eq('course_id', courseId)
+    const studentIds = enrollments?.map(e => e.student_id) || []
 
-        setStatusMsg(`Preparing to upload ${total} exams...`)
-
-        for (let i = 0; i < total; i += batchSize) {
-          const batch = dataRows.slice(i, i + batchSize)
-          const examsToInsert = []
-
-          for (const row of batch) {
-            const [code, title, dateStr, location] = row.split(',').map(s => s?.trim())
-            if (!code || !title || !dateStr) { failed++; continue }
-
-            const existingCourse = courses.find(c => c.code.toLowerCase() === code.toLowerCase())
-            if (!existingCourse) {
-              missingCourses.push(code)
-              failed++
-              continue
-            }
-
-            const examDate = new Date(dateStr).toISOString()
-            examsToInsert.push({
-              course_id: existingCourse.id,
-              title,
-              exam_date: examDate,
-              location
-            })
-          }
-
-          if (examsToInsert.length > 0) {
-            const { error } = await supabase.from('exams').insert(examsToInsert)
-            if (error) failed += examsToInsert.length
-            else success += examsToInsert.length
-          }
-
-          const currentProgress = Math.min(Math.round(((i + batchSize) / total) * 100), 100)
-          setProgress(currentProgress)
-          setStatusMsg(`Uploading... ${success} of ${total} completed`)
-        }
-
-        let alertMsg = `✅ ${success} exams uploaded successfully!\n❌ ${failed} rows failed.\n\n`
-        if (missingCourses.length > 0) {
-          const uniqueMissing = [...new Set(missingCourses)]
-          alertMsg += `⚠️ WARNING: The following Course Codes do not exist in your database:\n${uniqueMissing.join(', ')}\n\nPlease upload these courses first using 'Academic Mgmt'.`
-        }
-        setStatusMsg(`✅ Upload complete! ${success} exams added.`)
-        alert(alertMsg)
-        loadData()
-      } catch (err) {
-        setStatusMsg('❌ Error: ' + err.message)
-      } finally {
-        setUploading(false)
-        e.target.value = null 
-      }
+    if (studentIds.length === 0) {
+      alert('No students are enrolled in this course.')
+      setGenerating(false)
+      return
     }
-    reader.readAsText(file)
+
+    await supabase.from('seat_allocations').delete().eq('exam_id', examId)
+
+    let currentRoomIndex = 0
+    let currentSeat = 1
+    const allocations = []
+
+    for (const studentId of studentIds) {
+      if (currentSeat > rooms[currentRoomIndex].capacity) {
+        currentRoomIndex++
+        currentSeat = 1
+      }
+      if (currentRoomIndex >= rooms.length) {
+        alert('Warning: Not enough room capacity.')
+        break
+      }
+      allocations.push({
+        exam_id: examId, student_id: studentId, room_id: rooms[currentRoomIndex].id, seat_number: currentSeat
+      })
+      currentSeat++
+    }
+
+    if (allocations.length > 0) {
+      await supabase.from('seat_allocations').insert(allocations)
+      alert(`Successfully allocated seats for ${allocations.length} enrolled students!`)
+    }
+    setGenerating(false)
+    loadData()
   }
 
   const handleCreateExam = async (e) => {
@@ -168,50 +121,9 @@ export default function ExaminationsPage() {
     loadData()
   }
 
-  const generateSeats = async (examId) => {
-    if (rooms.length === 0) return alert('Please create exam rooms first.')
-    setGenerating(true)
-
-    const { data: students } = await supabase.from('profiles').select('id').eq('role', 'student')
-    if (!students || students.length === 0) {
-      alert('No students found to allocate.')
-      setGenerating(false)
-      return
-    }
-
-    await supabase.from('seat_allocations').delete().eq('exam_id', examId)
-
-    let currentRoomIndex = 0
-    let currentSeat = 1
-    const allocations = []
-
-    for (const student of students) {
-      if (currentSeat > rooms[currentRoomIndex].capacity) {
-        currentRoomIndex++
-        currentSeat = 1
-      }
-      if (currentRoomIndex >= rooms.length) {
-        alert('Warning: Not enough room capacity to seat all students.')
-        break
-      }
-      allocations.push({
-        exam_id: examId, student_id: student.id, room_id: rooms[currentRoomIndex].id, seat_number: currentSeat
-      })
-      currentSeat++
-    }
-
-    if (allocations.length > 0) {
-      await supabase.from('seat_allocations').insert(allocations)
-      alert(`Successfully allocated seats for ${allocations.length} students!`)
-    }
-    setGenerating(false)
-    loadData()
-  }
-
   const canPost = role === 'admin' || role === 'lecturer'
   const isAdmin = role === 'admin'
 
-  // Apply Search Filter
   const filteredExams = exams.filter(exam => 
     exam.courses?.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     exam.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -231,7 +143,7 @@ export default function ExaminationsPage() {
         <div className="flex gap-2">
           {isAdmin && (
             <>
-              <button onClick={handleRemoveDuplicates} disabled={deduplicating} className="bg-orange-100 text-orange-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-orange-200 transition">
+              <button onClick={handleRemoveDuplicates} disabled={deduplicating} className="bg-orange-100 text-orange-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2">
                 <Trash2 className="w-4 h-4" /> {deduplicating ? 'Scanning...' : 'Remove Duplicates'}
               </button>
               <button onClick={() => setShowRoomForm(!showRoomForm)} className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm">
@@ -247,36 +159,9 @@ export default function ExaminationsPage() {
         </div>
       </div>
 
-      {isAdmin && (
-        <div className="bg-blue-50 border border-blue-200 p-6 rounded-2xl flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-blue-900 mb-1">Bulk Upload Exams (CSV)</h3>
-            <p className="text-sm text-blue-700">Format: <code>Code, Title, Date (YYYY-MM-DD HH:MM), Location</code></p>
-          </div>
-          
-          {!uploading ? (
-            <label className="bg-blue-600 text-white px-6 py-2 rounded-xl cursor-pointer hover:bg-blue-700 flex items-center gap-2 font-medium">
-              <Upload className="w-4 h-4" /> Choose File
-              <input type="file" accept=".csv" onChange={handleCSVUpload} className="hidden" />
-            </label>
-          ) : (
-            <div className="w-1/3 space-y-1">
-              <div className="flex justify-between text-xs font-bold text-blue-800">
-                <span>{statusMsg}</span>
-                <span>{progress}%</span>
-              </div>
-              <div className="w-full bg-blue-200 rounded-full h-2">
-                <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${progress}%` }}></div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Search Bar */}
       <div className="relative">
         <Search className="w-5 h-5 absolute left-3 top-3 text-slate-400" />
-        <input type="text" placeholder="Search exams by course code, title, or location..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border rounded-xl shadow-sm focus:ring-2 focus:ring-brand-500 outline-none" />
+        <input type="text" placeholder="Search exams..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border rounded-xl shadow-sm focus:ring-2 focus:ring-brand-500 outline-none" />
       </div>
 
       {showRoomForm && isAdmin && (
@@ -313,7 +198,6 @@ export default function ExaminationsPage() {
       <div className="space-y-4">
         {filteredExams.map(exam => {
           const mySeat = mySeats.find(s => s.exam_id === exam.id)
-          
           return (
             <div key={exam.id} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col md:flex-row gap-6">
               <div className="bg-rose-50 text-rose-700 p-4 rounded-xl flex flex-col items-center justify-center min-w-[100px] h-fit">
@@ -340,7 +224,7 @@ export default function ExaminationsPage() {
 
                 {isAdmin && (
                   <div className="mt-4 pt-3 border-t">
-                    <button onClick={() => generateSeats(exam.id)} disabled={generating} className="bg-navy-900 text-white px-4 py-2 rounded-xl text-sm disabled:opacity-50">
+                    <button onClick={() => generateSeats(exam.id, exam.course_id)} disabled={generating} className="bg-navy-900 text-white px-4 py-2 rounded-xl text-sm disabled:opacity-50">
                       {generating ? 'Generating...' : 'Generate Seat Allocations'}
                     </button>
                   </div>

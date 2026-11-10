@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
-import { Users, Plus, X, MessageSquare, UploadCloud } from 'lucide-react'
+import { Users, Plus, X, Trash2, Image as ImageIcon } from 'lucide-react'
 
 export default function GroupsPage() {
   const { profile, role } = useAuth()
@@ -12,6 +12,7 @@ export default function GroupsPage() {
   const [activeTab, setActiveTab] = useState('All')
   
   const [form, setForm] = useState({ name: '', description: '', group_type: 'Study', category: 'Studies', requirements: '' })
+  const [imageFile, setImageFile] = useState(null)
   const [postContent, setPostContent] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -33,9 +34,26 @@ export default function GroupsPage() {
   const handleCreateGroup = async (e) => {
     e.preventDefault()
     setLoading(true)
-    await supabase.from('study_groups').insert([{ ...form, created_by: profile.id }])
+    let imageUrl = null
+
+    if (imageFile) {
+      const fileName = `grp-${Math.random()}.${imageFile.name.split('.').pop()}`
+      await supabase.storage.from('community-media').upload(fileName, imageFile)
+      const { data } = supabase.storage.from('community-media').getPublicUrl(fileName)
+      imageUrl = data.publicUrl
+    }
+
+    await supabase.from('study_groups').insert([{ ...form, created_by: profile.id, image_url: imageUrl }])
     setForm({ name: '', description: '', group_type: 'Study', category: 'Studies', requirements: '' })
+    setImageFile(null)
     setShowForm(false); setLoading(false); loadGroups()
+  }
+
+  const handleDeleteGroup = async (e, id) => {
+    e.stopPropagation()
+    if (!window.confirm('Admin: Delete this group permanently?')) return
+    await supabase.from('study_groups').delete().eq('id', id)
+    loadGroups()
   }
 
   const handleCreatePost = async (e) => {
@@ -49,7 +67,7 @@ export default function GroupsPage() {
   const filteredGroups = activeTab === 'All' ? groups : groups.filter(g => g.category === activeTab)
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-6 max-w-6xl mx-auto pb-10">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-slate-800">Campus Groups</h1>
         <button onClick={() => setShowForm(!showForm)} className="bg-brand-600 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-medium">
@@ -57,7 +75,6 @@ export default function GroupsPage() {
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 border-b border-slate-200 overflow-x-auto pb-px">
         {CATEGORIES.map(cat => (
           <button key={cat} onClick={() => setActiveTab(cat)} className={`px-4 py-2 font-medium text-sm border-b-2 transition whitespace-nowrap ${activeTab === cat ? 'border-brand-600 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
@@ -73,17 +90,33 @@ export default function GroupsPage() {
             {CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <textarea required placeholder="Description..." value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full border p-2 rounded-xl" rows="2"></textarea>
+          <input placeholder="Requirements (e.g. Must be in CS 101)" value={form.requirements} onChange={e => setForm({...form, requirements: e.target.value})} className="w-full border p-2 rounded-xl" />
+          <div>
+            <label className="block text-sm font-medium mb-1">Group Cover Image</label>
+            <input type="file" accept="image/*" onChange={e => setImageFile(e.target.files[0])} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-50 file:text-brand-700" />
+          </div>
           <button type="submit" disabled={loading} className="bg-navy-900 text-white px-6 py-2 rounded-xl">Create</button>
         </form>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredGroups.map(g => (
-          <div key={g.id} onClick={() => loadGroupDetails(g)} className="bg-white p-5 rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition">
-            <div className="w-12 h-12 bg-brand-50 rounded-xl flex items-center justify-center mb-4"><Users className="w-6 h-6 text-brand-600" /></div>
-            <h3 className="font-bold text-lg text-slate-800">{g.name}</h3>
-            <p className="text-sm text-slate-500 line-clamp-2 mt-1">{g.description}</p>
-            <span className="inline-block mt-4 bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-full uppercase">{g.category}</span>
+          <div key={g.id} onClick={() => loadGroupDetails(g)} className="bg-white rounded-2xl border shadow-sm cursor-pointer hover:shadow-md transition overflow-hidden flex flex-col">
+            {g.image_url ? (
+              <img src={g.image_url} alt={g.name} className="w-full h-40 object-cover" />
+            ) : (
+              <div className="w-full h-40 bg-slate-50 flex items-center justify-center"><ImageIcon className="w-8 h-8 text-slate-300" /></div>
+            )}
+            <div className="p-5 flex-1 flex flex-col relative">
+              {role === 'admin' && (
+                <button onClick={(e) => handleDeleteGroup(e, g.id)} className="absolute top-4 right-4 bg-red-100 text-red-600 p-2 rounded-lg hover:bg-red-200" title="Admin Delete">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+              <h3 className="font-bold text-lg text-slate-800 pr-10">{g.name}</h3>
+              <p className="text-sm text-slate-500 line-clamp-2 mt-1 flex-1">{g.description}</p>
+              <span className="inline-block mt-4 bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded-full uppercase w-fit">{g.category}</span>
+            </div>
           </div>
         ))}
       </div>

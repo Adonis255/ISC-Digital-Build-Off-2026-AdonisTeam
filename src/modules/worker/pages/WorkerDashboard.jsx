@@ -6,43 +6,74 @@ import { ClipboardList, CheckCircle2, Clock } from 'lucide-react'
 
 export default function WorkerDashboard() {
   const { profile } = useAuth()
-  const [stats, setStats] = useState({ total: 0, pending: 0, completed: 0 })
+  const [tasks, setTasks] = useState([])
+  const [bannerUrl, setBannerUrl] = useState('https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/University_of_Eastern_Africa_Baraton_Main_Building.jpg/1200px-University_of_Eastern_Africa_Baraton_Main_Building.jpg')
 
   useEffect(() => {
     if (!profile) return
     (async () => {
-      const { data } = await supabase.from('maintenance_requests').select('status').eq('assigned_to', profile.id)
-      const total = data?.length || 0
-      const completed = data?.filter(r => r.status === 'completed').length || 0
-      const pending = total - completed
-      setStats({ total, pending, completed })
+      // Fetch Banner
+      const { data: settings } = await supabase.from('system_settings').select('banner_url').eq('id', 1).maybeSingle()
+      if (settings?.banner_url) setBannerUrl(settings.banner_url)
+
+      const { data } = await supabase.from('maintenance_assignments')
+        .select('id,request_id,accepted_at,completed_at,maintenance_requests(id,title,status,urgency)')
+        .eq('worker_id', profile.id).order('assigned_at', { ascending: false })
+      setTasks(data || [])
     })()
-  }, [profile])
+  }, [profile?.id])
+
+  const pending = tasks.filter(t => !t.completed_at).length
+  const done = tasks.filter(t => t.completed_at).length
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Worker Dashboard</h1>
-        <p className="text-sm text-slate-500">Welcome back, {profile?.full_name}. Here are your task stats.</p>
+    <div className="space-y-6 pb-10">
+      
+      {/* HERO BANNER */}
+      <div className="relative bg-[#1a0b2e] rounded-2xl overflow-hidden flex flex-col md:flex-row items-center justify-between p-8 md:p-12 shadow-2xl">
+        <div className="absolute inset-0 opacity-40">
+          <img src={bannerUrl} alt="Campus Banner" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-[#1a0b2e]/70"></div>
+        </div>
+        <div className="relative z-10">
+          <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-2">Worker Dashboard</h1>
+          <p className="text-purple-200 text-lg">Welcome back, {profile?.full_name}. Here are your task stats.</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
+        <Link to="/worker/tasks" className="bg-white p-5 rounded-2xl border shadow-sm hover:shadow-md transition">
           <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 grid place-items-center mb-4"><ClipboardList className="w-5 h-5" /></div>
           <h3 className="font-semibold text-slate-800">Total Tasks</h3>
-          <p className="text-3xl font-bold mt-1">{stats.total}</p>
-        </div>
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
+          <p className="text-3xl font-bold mt-1">{tasks.length}</p>
+        </Link>
+        <Link to="/worker/tasks" className="bg-white p-5 rounded-2xl border shadow-sm hover:shadow-md transition">
           <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-600 grid place-items-center mb-4"><Clock className="w-5 h-5" /></div>
           <h3 className="font-semibold text-slate-800">Pending Tasks</h3>
-          <p className="text-3xl font-bold mt-1">{stats.pending}</p>
-          <Link to="/worker/tasks" className="text-sm text-brand-600 mt-2 inline-block hover:underline">View Tasks &rarr;</Link>
-        </div>
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
+          <p className="text-3xl font-bold mt-1">{pending}</p>
+        </Link>
+        <Link to="/worker/tasks" className="bg-white p-5 rounded-2xl border shadow-sm hover:shadow-md transition">
           <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 grid place-items-center mb-4"><CheckCircle2 className="w-5 h-5" /></div>
           <h3 className="font-semibold text-slate-800">Completed Tasks</h3>
-          <p className="text-3xl font-bold mt-1">{stats.completed}</p>
-        </div>
+          <p className="text-3xl font-bold mt-1">{done}</p>
+        </Link>
+      </div>
+
+      <div className="bg-white rounded-2xl border shadow-sm p-6">
+        <h2 className="font-semibold text-lg mb-4">Recent assignments</h2>
+        {tasks.length === 0 ? <p className="text-sm text-slate-500">No assignments yet.</p> : (
+          <ul className="divide-y">
+            {tasks.slice(0, 5).map(t => (
+              <li key={t.id} className="py-3">
+                <p className="font-medium">{t.maintenance_requests?.title}</p>
+                <p className="text-xs text-slate-500">
+                  Status: {t.maintenance_requests?.status} • Priority: {t.maintenance_requests?.urgency}
+                  {t.completed_at ? ' • Completed' : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   )

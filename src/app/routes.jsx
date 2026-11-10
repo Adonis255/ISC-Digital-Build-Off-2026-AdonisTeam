@@ -31,6 +31,7 @@ import ScholarshipsPage from '../modules/scholarships/pages/ScholarshipsPage.jsx
 import DirectoryPage from '../modules/directory/pages/DirectoryPage.jsx'
 import ExaminationsPage from '../modules/examinations/pages/ExaminationsPage.jsx'
 import CommunityPage from '../modules/community/pages/CommunityPage.jsx'
+import LeadersPage from '../modules/student/pages/LeadersPage.jsx'
 import NoticeBoardPage from '../modules/community/pages/NoticeBoardPage.jsx'
 import GroupsPage from '../modules/student/pages/GroupsPage.jsx'
 import EventsPage from '../modules/student/pages/EventsPage.jsx'
@@ -56,6 +57,7 @@ export default function AppRoutes() {
         <Route path="/student/attendance" element={<StudentAttendance />} />
         <Route path="/student/exams" element={<ExaminationsPage />} />
         <Route path="/student/community" element={<CommunityPage />} />
+        <Route path="/student/leaders" element={<LeadersPage />} />
         <Route path="/student/groups" element={<GroupsPage />} />
         <Route path="/student/events" element={<EventsPage />} />
         <Route path="/student/announcements" element={<AnnouncementsPage />} />

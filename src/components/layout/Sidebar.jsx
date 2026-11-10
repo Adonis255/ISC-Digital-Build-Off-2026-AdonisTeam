@@ -13,6 +13,7 @@ export default function Sidebar({ isOpen, closeMenu }) {
       { to: '/student/attendance', label: 'My Attendance', icon: Calendar },
       { to: '/student/exams', label: 'Exams', icon: FileText },
       { to: '/student/community', label: 'Community Feed', icon: MessageSquare },
+      { to: '/student/leaders', label: 'Leaders Board', icon: ShieldCheck },
       { to: '/student/groups', label: 'Study Groups', icon: Users },
       { to: '/student/events', label: 'Campus Events', icon: CalendarDays },
       { to: '/student/lost-found', label: 'Lost & Found', icon: Search },

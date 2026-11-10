@@ -1,23 +1,17 @@
-# Business Model & Sustainability
+# BaratonHub - One Page Business Model
 
-## Problem Statement
-University campuses operate in silos. Students use WhatsApp for lost items, physical notice boards for announcements, and paper forms for maintenance. This leads to lost data, slow response times, and poor student experience.
+### 1. Customer and Problem
+**Users:** Students, Lecturers, Administrators, and Campus Workers at UEAB.
+**Problem:** Fragmented campus communication. Lost items are never found, notices are missed on physical boards, students wait in long lines for fee clearance, and tracking lecture attendance is manual and prone to proxy (friends signing for friends). 
 
-## Solution
-BaratonHub is a central operating system for the university. It replaces fragmented tools with one unified, role-based portal.
+### 2. Solution and Value
+**Solution:** BaratonHub is a unified digital campus platform. It features a centralized Notice Board, a Lost & Found claim system, Smart Lecture GPS attendance, and dynamic fee tracking.
+**Value:** Reduces administrative overhead, eliminates paper waste, prevents attendance fraud, and creates a connected campus experience. 
 
-## Value Proposition
-- **For Students**: One app for everything (fees, exams, lost items).
-- **For Admin**: Real-time data, reduced operational overhead.
-- **For Workers**: Clear digital task assignment and evidence tracking.
+### 3. Costs and Adoption
+**Cost:** Hosted on Vercel (free tier) and Supabase (free tier). Estimated scale-up cost to support 5,000 users is ~$100/month for database and storage.
+**Adoption:** First 100 users will be reached via ISC department student ambassadors and the Student Affairs office. 
 
-## Target Customers
-- Primarily: University of Eastern Africa, Baraton.
-- Secondary: Other private universities in East Africa.
-
-## Proposed Sustainability Model (Non-Confirmed)
-- **Institutional Licensing**: The university pays an annual SaaS fee based on student population.
-- **Premium Features**: Advanced analytics modules for the administration.
-- **Value-Add Services**: Integration with local businesses for student discounts.
-
-*Note: This is a proposed model for the hackathon and does not represent an existing contract with UEAB.*
+### 4. Risks and Compliance
+**Risk:** GPS spoofing for attendance, data privacy for counselling records.
+**Compliance:** Supabase Row Level Security (RLS) ensures students only see their own financial and counselling data. GPS is used only during active lectures, and location data is deleted after the session ends.

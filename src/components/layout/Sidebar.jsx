@@ -37,6 +37,7 @@ export default function Sidebar({ isOpen, closeMenu }) {
       { to: '/admin/enrollments', label: 'Enrollments', icon: UserCheck },
       { to: '/admin/exams', label: 'Exams', icon: FileText },
       { to: '/admin/community', label: 'Community Feed', icon: MessageSquare },
+      { to: '/admin/leaders', label: 'Leaders Board', icon: ShieldCheck },
       { to: '/admin/groups', label: 'Study Groups', icon: Users },
       { to: '/admin/events', label: 'Campus Events', icon: CalendarDays },
       { to: '/admin/internships', label: 'Internships', icon: Briefcase },

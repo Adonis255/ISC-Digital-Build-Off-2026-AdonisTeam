@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
-import { ShieldCheck, Star, MessageSquare, Plus, X } from 'lucide-react'
+import { ShieldCheck, Star, MessageSquare, Plus, X, Mail, Phone, Image as ImageIcon } from 'lucide-react'
 
-const CATEGORIES = ['All', 'Department Heads', 'Student Body', 'Class Representatives', 'Club Leaders']
+const CATEGORIES = ['All', 'University Staff', 'Student Body', 'Department Heads', 'Class Representatives', 'Club Leaders']
 
 export default function LeadersPage() {
   const { profile, role } = useAuth()
@@ -14,7 +14,8 @@ export default function LeadersPage() {
   
   // Form State (Admin)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', position: '', category: 'Student Body', image_url: '' })
+  const [form, setForm] = useState({ name: '', position: '', category: 'Student Body', phone: '', email: '' })
+  const [imageFiles, setImageFiles] = useState([])
   const [loading, setLoading] = useState(false)
 
   // Review State (Student)
@@ -33,8 +34,23 @@ export default function LeadersPage() {
   const handleCreateLeader = async (e) => {
     e.preventDefault()
     setLoading(true)
-    await supabase.from('leaders').insert([form])
-    setForm({ name: '', position: '', category: 'Student Body', image_url: '' })
+    
+    // Upload up to 3 images
+    const uploadedUrls = []
+    const filesToUpload = imageFiles.slice(0, 3)
+    for (const file of filesToUpload) {
+      const fileName = `leader-${Math.random()}.${file.name.split('.').pop()}`
+      const { error } = await supabase.storage.from('community-media').upload(fileName, file)
+      if (!error) {
+        const { data } = supabase.storage.from('community-media').getPublicUrl(fileName)
+        uploadedUrls.push(data.publicUrl)
+      }
+    }
+
+    await supabase.from('leaders').insert([{ ...form, image_urls: uploadedUrls }])
+    
+    setForm({ name: '', position: '', category: 'Student Body', phone: '', email: '' })
+    setImageFiles([])
     setShowForm(false)
     setLoading(false)
     loadData()
@@ -65,8 +81,8 @@ export default function LeadersPage() {
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-lg flex items-center justify-center"><ShieldCheck className="w-6 h-6" /></div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Student Leaders Board</h1>
-            <p className="text-sm text-slate-500">Evaluate and discuss your campus leaders.</p>
+            <h1 className="text-2xl font-bold text-slate-800">Campus Leaders & Staff</h1>
+            <p className="text-sm text-slate-500">Evaluate and discuss university leadership.</p>
           </div>
         </div>
         {role === 'admin' && (
@@ -80,13 +96,21 @@ export default function LeadersPage() {
         <form onSubmit={handleCreateLeader} className="bg-white p-6 rounded-2xl border shadow-sm space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <input required placeholder="Full Name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="border p-2 rounded-xl" />
-            <input required placeholder="Position (e.g. President)" value={form.position} onChange={e => setForm({...form, position: e.target.value})} className="border p-2 rounded-xl" />
+            <input required placeholder="Position (e.g. Vice Chancellor, President)" value={form.position} onChange={e => setForm({...form, position: e.target.value})} className="border p-2 rounded-xl" />
           </div>
-          <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full border p-2 rounded-xl">
-            {CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <input placeholder="Image URL (Optional)" value={form.image_url} onChange={e => setForm({...form, image_url: e.target.value})} className="w-full border p-2 rounded-xl" />
-          <button type="submit" disabled={loading} className="bg-navy-900 text-white px-6 py-2 rounded-xl">Post Leader</button>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="border p-2 rounded-xl">
+              {CATEGORIES.filter(c => c !== 'All').map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input placeholder="Phone Number" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="border p-2 rounded-xl" />
+            <input placeholder="Email Address" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="border p-2 rounded-xl" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Upload Up to 3 Images</label>
+            <input type="file" multiple accept="image/*" onChange={e => setImageFiles(Array.from(e.target.files))} className="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-brand-50 file:text-brand-700" />
+            <p className="text-xs text-slate-400 mt-1">{imageFiles.length} file(s) selected (Max 3).</p>
+          </div>
+          <button type="submit" disabled={loading} className="bg-navy-900 text-white px-6 py-2 rounded-xl">{loading ? 'Saving...' : 'Post Leader'}</button>
         </form>
       )}
 
@@ -106,16 +130,29 @@ export default function LeadersPage() {
 
           return (
             <div key={leader.id} className="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col">
-              <div className="p-6 flex items-center gap-4">
-                {leader.image_url ? (
-                  <img src={leader.image_url} alt={leader.name} className="w-20 h-20 rounded-full object-cover border-4 border-slate-50" />
-                ) : (
-                  <div className="w-20 h-20 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-2xl font-bold border-4 border-slate-50">{leader.name.charAt(0)}</div>
+              
+              {/* Images Carousel/Grid */}
+              {leader.image_urls && leader.image_urls.length > 0 && (
+                <div className="flex h-48 overflow-x-auto snap-x">
+                  {leader.image_urls.map((url, i) => (
+                    <img key={i} src={url} alt="Leader" className="w-full h-full object-cover shrink-0 snap-center" />
+                  ))}
+                </div>
+              )}
+
+              <div className="p-6 flex items-start gap-4">
+                {(!leader.image_urls || leader.image_urls.length === 0) && (
+                  <div className="w-16 h-16 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-2xl font-bold border-4 border-slate-50 shrink-0">{leader.name.charAt(0)}</div>
                 )}
                 <div>
                   <h3 className="font-bold text-xl text-slate-800">{leader.name}</h3>
                   <p className="text-brand-600 font-medium">{leader.position}</p>
                   <span className="inline-block mt-1 px-2 py-0.5 bg-slate-100 text-slate-500 rounded text-[10px] font-bold uppercase">{leader.category}</span>
+                  
+                  <div className="mt-2 space-y-1 text-xs text-slate-500">
+                    {leader.phone && <p className="flex items-center gap-1"><Phone className="w-3 h-3" /> {leader.phone}</p>}
+                    {leader.email && <p className="flex items-center gap-1"><Mail className="w-3 h-3" /> {leader.email}</p>}
+                  </div>
                 </div>
               </div>
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
 import { useNavigate } from 'react-router-dom'
-import { Square, RefreshCw, MessageSquare, Send, CheckCircle, AlertCircle } from 'lucide-react'
+import { Square, RefreshCw, MessageSquare, Send, CheckCircle, AlertCircle, MapPin } from 'lucide-react'
 
 export default function LiveLecture() {
   const { profile } = useAuth()
@@ -15,22 +15,20 @@ export default function LiveLecture() {
   
   const [newQuestion, setNewQuestion] = useState('')
   const [replyText, setReplyText] = useState({})
+  const [asking, setAsking] = useState(false)
 
   useEffect(() => {
     if (!profile) return
     let interval
     const loadSession = async () => {
-      // Use limit(1) instead of maybeSingle to prevent crashes if multiple exist
-      const { data } = await supabase.from('lecture_sessions').select('*, courses(code, title)').eq('lecturer_id', profile.id).eq('is_active', true).limit(1)
-      
-      if (data && data.length > 0) {
-        const s = data[0]
-        setSession(s)
-        loadRecords(s.id, s.course_id) 
-        loadQuestions(s.id)
+      const { data } = await supabase.from('lecture_sessions').select('*, courses(code, title)').eq('lecturer_id', profile.id).eq('is_active', true).maybeSingle()
+      if (data) {
+        setSession(data)
+        loadRecords(data.id, data.course_id) 
+        loadQuestions(data.id)
         interval = setInterval(() => {
-          loadRecords(s.id, s.course_id)
-          loadQuestions(s.id)
+          loadRecords(data.id, data.course_id)
+          loadQuestions(data.id)
         }, 3000)
       } else {
         nav('/lecturer/classes')
@@ -38,9 +36,10 @@ export default function LiveLecture() {
     }
     loadSession()
     return () => clearInterval(interval)
-  }, [profile, nav])
+  }, [profile])
 
   const loadRecords = async (id, courseId) => {
+    // Fetch distance along with attendance status
     const { data: recs } = await supabase.from('lecture_attendance').select('*, profiles(full_name)').eq('session_id', id).order('created_at', { ascending: false })
     setRecords(recs || [])
 
@@ -78,8 +77,10 @@ export default function LiveLecture() {
 
   const askQuestion = async () => {
     if (!newQuestion.trim()) return
+    setAsking(true)
     await supabase.from('lecture_questions').insert([{ session_id: session.id, question_text: newQuestion, author_id: profile.id, author_role: 'lecturer' }])
     setNewQuestion('')
+    setAsking(false)
     loadQuestions(session.id)
   }
 
@@ -91,13 +92,14 @@ export default function LiveLecture() {
     loadQuestions(session.id)
   }
 
-  if (!session) return <p className="text-center py-10">Loading...</p>
+  if (!session) return <p className="text-center py-10">Loading live session...</p>
 
   return (
     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+      
       <div className="bg-white p-6 rounded-xl border shadow-sm space-y-4 lg:col-span-1">
-        <h2 className="text-xl font-bold text-brand-700">{session.courses?.code || 'Course'}</h2>
-        <p className="font-medium text-slate-800">{session.courses?.title || ''}</p>
+        <h2 className="text-xl font-bold text-brand-700">{session.courses?.code}</h2>
+        <p className="font-medium text-slate-800">{session.courses?.title}</p>
         <div className="p-3 bg-slate-50 rounded-lg border">
           <p className="text-xs font-bold text-slate-500 uppercase">Topic</p>
           <p className="text-sm font-medium">{session.topic}</p>
@@ -107,17 +109,21 @@ export default function LiveLecture() {
 
       <div className="bg-white p-6 rounded-xl border shadow-sm lg:col-span-1">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-lg font-bold flex items-center gap-2"><CheckCircle className="w-5 h-5 text-green-600" /> Present ({records.length})</h2>
+          <h2 className="text-lg font-bold flex items-center gap-2"><CheckCircle className="w-5 h-5 text-green-600" /> Present ({records.filter(r => r.status === 'Present' || r.status === 'Manual').length})</h2>
           <button onClick={() => loadRecords(session.id, session.course_id)} className="text-brand-600"><RefreshCw className="w-4 h-4" /></button>
         </div>
         <div className="space-y-2 max-h-[250px] overflow-y-auto mb-6">
-          {records.map(r => (
-            <div key={r.id} className="p-2 bg-green-50 border border-green-200 rounded text-sm flex justify-between">
-              <span className="font-medium">{r.profiles?.full_name || 'Unknown'}</span>
-              <span className="text-xs text-green-700">{r.status}</span>
+          {records.filter(r => r.status === 'Present' || r.status === 'Manual').map(r => (
+            <div key={r.id} className="p-2 bg-green-50 border border-green-200 rounded text-sm flex justify-between items-center">
+              <div>
+                <p className="font-medium">{r.profiles?.full_name || 'Unknown'}</p>
+                {r.distance && <p className="text-[10px] text-green-700 flex items-center gap-1"><MapPin className="w-3 h-3"/> {Math.round(r.distance)}m away</p>}
+              </div>
+              <span className="text-xs font-bold text-green-700 uppercase">{r.status}</span>
             </div>
           ))}
         </div>
+
         <h2 className="text-lg font-bold flex items-center gap-2 mb-4 text-red-600"><AlertCircle className="w-5 h-5" /> Missing ({missingStudents.length})</h2>
         <div className="space-y-2 max-h-[250px] overflow-y-auto">
           {missingStudents.map(s => (
@@ -133,7 +139,7 @@ export default function LiveLecture() {
         <h2 className="text-lg font-bold flex items-center gap-2 mb-4"><MessageSquare className="w-5 h-5" /> Class Q&A</h2>
         <div className="flex gap-2 mb-4">
           <input type="text" placeholder="Ask a question..." value={newQuestion} onChange={e => setNewQuestion(e.target.value)} className="flex-1 border p-2 rounded-lg text-sm" />
-          <button onClick={askQuestion} className="bg-brand-600 text-white p-2 rounded-lg"><Send className="w-4 h-4" /></button>
+          <button onClick={askQuestion} disabled={asking} className="bg-brand-600 text-white p-2 rounded-lg"><Send className="w-4 h-4" /></button>
         </div>
         <div className="space-y-4 overflow-y-auto flex-1 pr-2">
           {questions.map(q => (
@@ -155,6 +161,7 @@ export default function LiveLecture() {
           ))}
         </div>
       </div>
+
     </div>
   )
 }

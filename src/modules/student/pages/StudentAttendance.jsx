@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
-import { CheckCircle, FileText, MessageSquare, ShieldAlert, Send, XCircle } from 'lucide-react'
+import { CheckCircle, ShieldAlert, MapPin, PlayCircle, XCircle, Clock, Monitor, FileText } from 'lucide-react'
 
 export default function StudentAttendance() {
   const { profile } = useAuth()
   const [session, setSession] = useState(null)
-  const [status, setStatus] = useState('idle')
+  const [status, setStatus] = useState('idle') // idle, verifying, present, too_far, left
+  const [distance, setDistance] = useState(null)
+  const [liveDistance, setLiveDistance] = useState(null)
   const [questions, setQuestions] = useState([])
   const [responses, setResponses] = useState({})
-  const [pastSessions, setPastSessions] = useState([])
   
   const [newQuestion, setNewQuestion] = useState('')
   const [replyText, setReplyText] = useState({})
@@ -23,6 +24,14 @@ export default function StudentAttendance() {
     return id
   }
 
+  const calculateDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371e3; const p1 = lat1 * Math.PI/180; const p2 = lat2 * Math.PI/180;
+    const dp = (lat2-lat1) * Math.PI/180; const dl = (lon2-lon1) * Math.PI/180;
+    const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1)*Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  // 1. Poll for Active Session & Questions
   useEffect(() => {
     if (!profile) return
     let interval = setInterval(async () => {
@@ -30,28 +39,36 @@ export default function StudentAttendance() {
       const courseIds = enrollments?.map(e => e.course_id) || []
       if (courseIds.length === 0) return
 
-      const { data: s } = await supabase.from('lecture_sessions').select('*, courses(*)').in('course_id', courseIds).eq('is_active', true).limit(1)
+      const { data: s } = await supabase.from('lecture_sessions').select('*, courses(*)').in('course_id', courseIds).eq('is_active', true).maybeSingle()
       
-      if (s && s.length > 0) {
-        const sessionData = s[0]
-        setSession(sessionData)
-        const { data: rec } = await supabase.from('lecture_attendance').select('*').eq('session_id', sessionData.id).eq('student_id', profile.id).maybeSingle()
-        if (rec) setStatus('present')
-        loadQuestions(sessionData.id)
+      if (s) {
+        setSession(s)
+        const { data: rec } = await supabase.from('lecture_attendance').select('*').eq('session_id', s.id).eq('student_id', profile.id).maybeSingle()
+        if (rec) setStatus(rec.status === 'Present' || rec.status === 'Manual' ? 'present' : 'too_far')
+        loadQuestions(s.id)
       } else {
         setSession(null)
         setStatus('idle')
       }
-
-      const { data: past } = await supabase.from('lecture_sessions').select('*, courses(code, title)').in('course_id', courseIds).eq('is_active', false).order('created_at', { ascending: false })
-      const { data: myRecords } = await supabase.from('lecture_attendance').select('*').eq('student_id', profile.id)
-      
-      if (past) {
-        setPastSessions(past.map(p => ({ ...p, record: myRecords?.find(r => r.session_id === p.id) })))
-      }
     }, 3000)
     return () => clearInterval(interval)
   }, [profile])
+
+  // 2. LIVE Distance Checker (Only runs if session is active and student hasn't verified yet)
+  useEffect(() => {
+    if (!session || status === 'present') return
+
+    const checkLiveDistance = () => {
+      navigator.geolocation.getCurrentPosition((pos) => {
+        const d = calculateDistance(pos.coords.latitude, pos.coords.longitude, session.venue_lat, session.venue_lng)
+        setLiveDistance(d)
+      })
+    }
+
+    checkLiveDistance() // check immediately
+    const trackInterval = setInterval(checkLiveDistance, 5000) // check every 5 seconds
+    return () => clearInterval(trackInterval)
+  }, [session, status])
 
   const loadQuestions = async (sessionId) => {
     const { data } = await supabase.from('lecture_questions').select('*, profiles(full_name)').eq('session_id', sessionId).order('created_at', { ascending: true })
@@ -71,13 +88,21 @@ export default function StudentAttendance() {
   const verifyAttendance = () => {
     setStatus('verifying')
     navigator.geolocation.getCurrentPosition(async (pos) => {
+      const d = calculateDistance(pos.coords.latitude, pos.coords.longitude, session.venue_lat, session.venue_lng)
+      setDistance(d)
       const deviceId = getDeviceId()
-      const { error } = await supabase.from('lecture_attendance').insert([{ session_id: session.id, student_id: profile.id, status: 'Present', device_id: deviceId }])
-      if (error) {
-        alert(error.message) 
-        setStatus('idle')
+
+      if (d > session.radius_meters) {
+        setStatus('too_far')
+        await supabase.from('lecture_attendance').insert([{ session_id: session.id, student_id: profile.id, distance: d, status: 'Rejected', device_id: deviceId }])
       } else {
-        setStatus('present')
+        const { error } = await supabase.from('lecture_attendance').insert([{ session_id: session.id, student_id: profile.id, distance: d, status: 'Present', device_id: deviceId }])
+        if (error) {
+          alert(error.message) 
+          setStatus('idle')
+        } else {
+          setStatus('present')
+        }
       }
     }, () => setStatus('idle'))
   }
@@ -97,74 +122,100 @@ export default function StudentAttendance() {
     loadQuestions(session.id)
   }
 
+  if (!session) return <div className="text-center py-10"><p className="text-slate-500">No active classes right now.</p></div>
+
+  // Determine UI state based on live distance
+  const isFar = liveDistance !== null && liveDistance > session.radius_meters;
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-20">
-      <h1 className="text-2xl font-bold">My Attendance</h1>
+      <div className="bg-white p-6 rounded-xl border-2 border-brand-500 shadow-md">
+        <h2 className="text-xl font-bold mb-1">{session.courses?.code} - {session.courses?.title}</h2>
+        <p className="text-sm text-slate-500 mb-6">Topic: {session.topic}</p>
 
-      {session ? (
-        <div className="bg-white p-6 rounded-xl border-2 border-brand-500 shadow-md">
-          <h2 className="text-xl font-bold mb-1">{session.courses?.code} - {session.courses?.title}</h2>
-          <p className="text-sm text-slate-500 mb-6">Topic: {session.topic}</p>
-
-          {status === 'idle' && <button onClick={verifyAttendance} className="w-full bg-brand-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-brand-700">Verify My Attendance</button>}
-          {status === 'verifying' && <p className="text-brand-600 font-medium animate-pulse text-center">Checking GPS...</p>}
-          {status === 'present' && (
-            <div className="bg-green-50 p-4 rounded-lg text-center border border-green-200">
-              <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
-              <p className="text-green-700 font-bold">Present in class!</p>
-            </div>
-          )}
-
-          <div className="mt-6 pt-6 border-t border-slate-200">
-            <h3 className="font-bold mb-3 flex items-center gap-2"><MessageSquare className="w-5 h-5" /> Class Discussion</h3>
-            <div className="flex gap-2 mb-4">
-              <input type="text" placeholder="Ask a question..." value={newQuestion} onChange={e => setNewQuestion(e.target.value)} className="flex-1 border p-2 rounded-lg text-sm" />
-              <button onClick={askQuestion} className="bg-brand-600 text-white px-4 py-2 rounded-lg"><Send className="w-4 h-4" /></button>
-            </div>
-            <div className="space-y-3">
-              {questions.map(q => (
-                <div key={q.id} className="p-3 bg-slate-50 rounded-lg border text-sm">
-                  <p className="font-medium mb-2">{q.question_text}</p>
-                  {responses[q.id]?.map(r => (
-                    <p key={r.id} className="text-xs text-slate-600 mb-1"><strong className="text-slate-800">{r.profiles?.full_name}:</strong> {r.response_text}</p>
-                  ))}
-                  <div className="flex gap-2 mt-2">
-                    <input type="text" placeholder="Reply..." onChange={e => setReplyText({...replyText, [q.id]: e.target.value})} className="flex-1 border p-1 rounded text-xs" />
-                    <button onClick={() => submitReply(q.id)} className="bg-navy-900 text-white px-3 py-1 rounded text-xs">Send</button>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {status === 'idle' && (
+          <div className="space-y-4">
+            {liveDistance !== null ? (
+              <div className={`p-4 rounded-lg text-center border ${isFar ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                {isFar ? (
+                  <>
+                    <ShieldAlert className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                    <p className="text-red-700 font-bold">You are {Math.round(liveDistance)}m away.</p>
+                    <p className="text-sm text-red-600">Please go near the lecture hall to verify.</p>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                    <p className="text-green-700 font-bold">You are {Math.round(liveDistance)}m away.</p>
+                    <p className="text-sm text-green-600">You are near the lecture hall. You can verify now.</p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <p className="text-center text-slate-500 animate-pulse">Locating your position...</p>
+            )}
+            
+            <button 
+              onClick={verifyAttendance} 
+              disabled={isFar || liveDistance === null}
+              className="w-full bg-brand-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-brand-700 disabled:opacity-50 transition"
+            >
+              {isFar ? 'Too far to verify' : 'Verify My Attendance'}
+            </button>
           </div>
-        </div>
-      ) : (
-        <div className="bg-white p-6 rounded-xl border text-center py-10">
-          <p className="text-slate-500">No active classes right now.</p>
-        </div>
-      )}
+        )}
 
-      <div className="pt-6">
-        <h2 className="text-lg font-bold mb-4">Lecture History</h2>
-        <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b">
-              <tr><th className="p-3">Course</th><th className="p-3">Status</th></tr>
-            </thead>
-            <tbody>
-              {pastSessions.map(s => (
-                <tr key={s.id} className="border-b">
-                  <td className="p-3 font-medium">{s.courses?.code}</td>
-                  <td className="p-3">
-                    {s.record?.status === 'Present' || s.record?.status === 'Manual' ? (
-                      <span className="text-green-600 font-bold text-xs flex items-center gap-1"><CheckCircle className="w-3 h-3" /> {s.record.status}</span>
-                    ) : (
-                      <span className="text-red-600 font-bold text-xs flex items-center gap-1"><XCircle className="w-3 h-3" /> Missed</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {status === 'verifying' && <p className="text-brand-600 font-medium animate-pulse text-center">Confirming GPS location...</p>}
+        
+        {status === 'too_far' && (
+          <div className="bg-red-50 p-4 rounded-lg text-center border border-red-200">
+            <ShieldAlert className="w-8 h-8 text-red-500 mx-auto mb-2" />
+            <p className="text-red-700 font-bold">Attendance Rejected.</p>
+            <p className="text-sm text-red-600">You were too far ({Math.round(distance)}m away).</p>
+            <button onClick={() => setStatus('idle')} className="mt-3 text-sm font-bold text-red-700 underline">Try Again</button>
+          </div>
+        )}
+
+        {status === 'present' && (
+          <div className="bg-green-50 p-4 rounded-lg text-center border border-green-200">
+            <CheckCircle className="w-8 h-8 text-green-500 mx-auto mb-2" />
+            <p className="text-green-700 font-bold">Present in class!</p>
+            <p className="text-sm text-green-600">Your attendance has been recorded.</p>
+          </div>
+        )}
+
+        {(session.notes || session.resources?.length > 0) && (
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <h3 className="font-bold mb-3">Class Notes & Materials</h3>
+            {session.notes && <p className="text-sm text-slate-700 whitespace-pre-wrap mb-4">{session.notes}</p>}
+            {session.resources?.map((r, i) => (
+              <a key={i} href={r.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-brand-600 hover:underline mb-2">
+                <FileText className="w-4 h-4" /> {r.name}
+              </a>
+            ))}
+          </div>
+        )}
+
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <h3 className="font-bold mb-3 flex items-center gap-2"><Monitor className="w-5 h-5" /> Class Discussion</h3>
+          <div className="flex gap-2 mb-4">
+            <input type="text" placeholder="Ask a question..." value={newQuestion} onChange={e => setNewQuestion(e.target.value)} className="flex-1 border p-2 rounded-lg text-sm" />
+            <button onClick={askQuestion} className="bg-brand-600 text-white px-4 py-2 rounded-lg">Ask</button>
+          </div>
+          <div className="space-y-3">
+            {questions.map(q => (
+              <div key={q.id} className="p-3 bg-slate-50 rounded-lg border text-sm">
+                <p className="font-medium mb-2">{q.question_text}</p>
+                {responses[q.id]?.map(r => (
+                  <p key={r.id} className="text-xs text-slate-600 mb-1"><strong className="text-slate-800">{r.profiles?.full_name}:</strong> {r.response_text}</p>
+                ))}
+                <div className="flex gap-2 mt-2">
+                  <input type="text" placeholder="Reply..." onChange={e => setReplyText({...replyText, [q.id]: e.target.value})} className="flex-1 border p-1 rounded text-xs" />
+                  <button onClick={() => submitReply(q.id)} className="bg-navy-900 text-white px-3 py-1 rounded text-xs">Send</button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

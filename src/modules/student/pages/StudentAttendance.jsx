@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
-import { CheckCircle, ShieldAlert, MapPin, PlayCircle, XCircle, Clock, Monitor, FileText } from 'lucide-react'
+import { CheckCircle, ShieldAlert, MapPin, Monitor, FileText, RefreshCw } from 'lucide-react'
 
 export default function StudentAttendance() {
   const { profile } = useAuth()
   const [session, setSession] = useState(null)
-  const [status, setStatus] = useState('idle') // idle, verifying, present, too_far, left
+  const [status, setStatus] = useState('idle')
   const [distance, setDistance] = useState(null)
   const [liveDistance, setLiveDistance] = useState(null)
+  const [isLocating, setIsLocating] = useState(false)
+  const [gpsError, setGpsError] = useState('')
+  
   const [questions, setQuestions] = useState([])
   const [responses, setResponses] = useState({})
-  
   const [newQuestion, setNewQuestion] = useState('')
   const [replyText, setReplyText] = useState({})
 
@@ -29,6 +31,25 @@ export default function StudentAttendance() {
     const dp = (lat2-lat1) * Math.PI/180; const dl = (lon2-lon1) * Math.PI/180;
     const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1)*Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  const checkLocation = () => {
+    if (!session) return
+    setIsLocating(true)
+    setGpsError('')
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const d = calculateDistance(pos.coords.latitude, pos.coords.longitude, session.venue_lat, session.venue_lng)
+        setLiveDistance(d)
+        setIsLocating(false)
+      },
+      (err) => {
+        setGpsError('Could not get location. Please ensure GPS is on.')
+        setIsLocating(false)
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 } // FORCES FRESH GPS
+    )
   }
 
   // 1. Poll for Active Session & Questions
@@ -54,19 +75,11 @@ export default function StudentAttendance() {
     return () => clearInterval(interval)
   }, [profile])
 
-  // 2. LIVE Distance Checker (Only runs if session is active and student hasn't verified yet)
+  // 2. Live distance checker (Every 5 seconds)
   useEffect(() => {
     if (!session || status === 'present') return
-
-    const checkLiveDistance = () => {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        const d = calculateDistance(pos.coords.latitude, pos.coords.longitude, session.venue_lat, session.venue_lng)
-        setLiveDistance(d)
-      })
-    }
-
-    checkLiveDistance() // check immediately
-    const trackInterval = setInterval(checkLiveDistance, 5000) // check every 5 seconds
+    checkLocation() // Check immediately when session starts
+    const trackInterval = setInterval(checkLocation, 5000)
     return () => clearInterval(trackInterval)
   }, [session, status])
 
@@ -87,24 +100,24 @@ export default function StudentAttendance() {
 
   const verifyAttendance = () => {
     setStatus('verifying')
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      const d = calculateDistance(pos.coords.latitude, pos.coords.longitude, session.venue_lat, session.venue_lng)
-      setDistance(d)
-      const deviceId = getDeviceId()
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const d = calculateDistance(pos.coords.latitude, pos.coords.longitude, session.venue_lat, session.venue_lng)
+        setDistance(d)
+        const deviceId = getDeviceId()
 
-      if (d > session.radius_meters) {
-        setStatus('too_far')
-        await supabase.from('lecture_attendance').insert([{ session_id: session.id, student_id: profile.id, distance: d, status: 'Rejected', device_id: deviceId }])
-      } else {
-        const { error } = await supabase.from('lecture_attendance').insert([{ session_id: session.id, student_id: profile.id, distance: d, status: 'Present', device_id: deviceId }])
-        if (error) {
-          alert(error.message) 
-          setStatus('idle')
+        if (d > session.radius_meters) {
+          setStatus('too_far')
+          await supabase.from('lecture_attendance').insert([{ session_id: session.id, student_id: profile.id, distance: d, status: 'Rejected', device_id: deviceId }])
         } else {
-          setStatus('present')
+          const { error } = await supabase.from('lecture_attendance').insert([{ session_id: session.id, student_id: profile.id, distance: d, status: 'Present', device_id: deviceId }])
+          if (error) { alert(error.message); setStatus('idle') } 
+          else { setStatus('present') }
         }
-      }
-    }, () => setStatus('idle'))
+      }, 
+      () => setStatus('idle'),
+      { enableHighAccuracy: true, maximumAge: 0 } // Force fresh GPS here too
+    )
   }
 
   const askQuestion = async () => {
@@ -124,7 +137,6 @@ export default function StudentAttendance() {
 
   if (!session) return <div className="text-center py-10"><p className="text-slate-500">No active classes right now.</p></div>
 
-  // Determine UI state based on live distance
   const isFar = liveDistance !== null && liveDistance > session.radius_meters;
 
   return (
@@ -135,13 +147,24 @@ export default function StudentAttendance() {
 
         {status === 'idle' && (
           <div className="space-y-4">
-            {liveDistance !== null ? (
+            {isLocating && !liveDistance ? (
+              <p className="text-center text-brand-600 font-medium animate-pulse">Acquiring GPS satellite signal...</p>
+            ) : gpsError ? (
+              <div className="p-4 rounded-lg text-center bg-red-50 border border-red-200">
+                <ShieldAlert className="w-8 h-8 text-red-500 mx-auto mb-2" />
+                <p className="text-red-700 font-bold">{gpsError}</p>
+                <button onClick={checkLocation} className="mt-3 text-sm font-bold text-red-700 underline">Try Again</button>
+              </div>
+            ) : liveDistance !== null ? (
               <div className={`p-4 rounded-lg text-center border ${isFar ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
                 {isFar ? (
                   <>
                     <ShieldAlert className="w-8 h-8 text-red-500 mx-auto mb-2" />
                     <p className="text-red-700 font-bold">You are {Math.round(liveDistance)}m away.</p>
                     <p className="text-sm text-red-600">Please go near the lecture hall to verify.</p>
+                    <button onClick={checkLocation} className="mt-3 flex items-center justify-center gap-1 text-sm font-bold text-red-700 bg-red-100 px-3 py-1.5 rounded-lg w-full hover:bg-red-200">
+                      <RefreshCw className="w-4 h-4" /> Refresh Location
+                    </button>
                   </>
                 ) : (
                   <>
@@ -151,16 +174,14 @@ export default function StudentAttendance() {
                   </>
                 )}
               </div>
-            ) : (
-              <p className="text-center text-slate-500 animate-pulse">Locating your position...</p>
-            )}
+            ) : null}
             
             <button 
               onClick={verifyAttendance} 
-              disabled={isFar || liveDistance === null}
+              disabled={isFar || liveDistance === null || isLocating}
               className="w-full bg-brand-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-brand-700 disabled:opacity-50 transition"
             >
-              {isFar ? 'Too far to verify' : 'Verify My Attendance'}
+              {isLocating ? 'Locating...' : isFar ? 'Too far to verify' : 'Verify My Attendance'}
             </button>
           </div>
         )}
@@ -172,7 +193,7 @@ export default function StudentAttendance() {
             <ShieldAlert className="w-8 h-8 text-red-500 mx-auto mb-2" />
             <p className="text-red-700 font-bold">Attendance Rejected.</p>
             <p className="text-sm text-red-600">You were too far ({Math.round(distance)}m away).</p>
-            <button onClick={() => setStatus('idle')} className="mt-3 text-sm font-bold text-red-700 underline">Try Again</button>
+            <button onClick={() => { setStatus('idle'); checkLocation(); }} className="mt-3 text-sm font-bold text-red-700 underline">Try Again</button>
           </div>
         )}
 

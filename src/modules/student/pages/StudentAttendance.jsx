@@ -17,9 +17,8 @@ export default function StudentAttendance() {
   const [newQuestion, setNewQuestion] = useState('')
   const [replyText, setReplyText] = useState({})
   
-  // History State
-  const [missedClasses, setMissedClasses] = useState([])
-  const [attendedClasses, setAttendedClasses] = useState([])
+  // History State (Grouped by Unit)
+  const [courseStats, setCourseStats] = useState([])
 
   const getDeviceId = () => {
     let id = localStorage.getItem('bh_device_id')
@@ -86,28 +85,34 @@ export default function StudentAttendance() {
       }
     }
 
-    // 3. Get Past Sessions (History & Missed)
-    const { data: pastSessions } = await supabase.from('lecture_sessions').select('*, courses(code, title)').in('course_id', courseIds).eq('is_active', false).order('created_at', { ascending: false })
+    // 3. Calculate Grouped Stats (Per Course)
+    const { data: pastSessions } = await supabase.from('lecture_sessions').select('id, course_id').in('course_id', courseIds).eq('is_active', false)
     const { data: myRecords } = await supabase.from('lecture_attendance').select('session_id, status').eq('student_id', profile.id)
 
-    if (pastSessions) {
-      const missed = []
-      const attended = []
+    if (enrollments && pastSessions && myRecords) {
+      const statsMap = {}
       
+      // Initialize map for all enrolled courses
+      enrollments.forEach(e => {
+        statsMap[e.course_id] = { code: e.courses.code, title: e.courses.title, present: 0, missed: 0 }
+      })
+
+      // Tally up sessions
       pastSessions.forEach(ps => {
-        const record = myRecords?.find(r => r.session_id === ps.id)
-        if (!record || record.status === 'Rejected') {
-          missed.push(ps)
-        } else {
-          attended.push(ps)
+        const record = myRecords.find(r => r.session_id === ps.id)
+        if (statsMap[ps.course_id]) {
+          if (record && (record.status === 'Present' || record.status === 'Manual')) {
+            statsMap[ps.course_id].present += 1
+          } else {
+            statsMap[ps.course_id].missed += 1
+          }
         }
       })
-      setMissedClasses(missed)
-      setAttendedClasses(attended)
+
+      setCourseStats(Object.values(statsMap))
     }
   }, [profile])
 
-  // Realtime Listener for Sessions
   useEffect(() => {
     loadAttendanceData()
 
@@ -121,11 +126,10 @@ export default function StudentAttendance() {
     return () => supabase.removeChannel(channel)
   }, [profile, loadAttendanceData])
 
-  // Live distance tracker
   useEffect(() => {
     if (!session || status === 'present') return
     checkLocation()
-    const trackInterval = setInterval(checkLocation, 10000) // reduced frequency to save battery
+    const trackInterval = setInterval(checkLocation, 10000)
     return () => clearInterval(trackInterval)
   }, [session?.id, status, checkLocation])
 
@@ -280,45 +284,31 @@ export default function StudentAttendance() {
         </div>
       )}
 
-      {/* MISSED CLASSES HISTORY */}
-      {missedClasses.length > 0 && (
-        <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-8 border-red-200">
-          <div className="bg-red-50 p-4 border-b border-red-100">
-            <h2 className="text-lg font-bold text-red-800 flex items-center gap-2"><XCircle className="w-5 h-5" /> Missed Classes ({missedClasses.length})</h2>
-          </div>
-          <table className="w-full text-left text-sm">
-            <tbody>
-              {missedClasses.map(s => (
-                <tr key={s.id} className="border-b">
-                  <td className="p-3 font-medium">{s.courses?.code} - {s.courses?.title}</td>
-                  <td className="p-3 text-slate-500">{new Date(s.created_at).toLocaleDateString()}</td>
-                  <td className="p-3 text-right"><span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-bold uppercase">Missed</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* GROUPED COURSE STATS */}
+      <div className="mt-8">
+        <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2"><Clock className="w-5 h-5" /> My Attendance History</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {courseStats.map(stat => (
+            <div key={stat.code} className="bg-white rounded-2xl border shadow-sm p-5 flex flex-col justify-between">
+              <div>
+                <h3 className="font-bold text-lg text-slate-800">{stat.code}</h3>
+                <p className="text-sm text-slate-500 truncate">{stat.title}</p>
+              </div>
+              <div className="flex gap-4 mt-4 pt-4 border-t">
+                <div className="flex-1 bg-green-50 rounded-xl p-3 text-center border border-green-100">
+                  <p className="text-2xl font-bold text-green-600">{stat.present}</p>
+                  <p className="text-xs font-bold text-green-700 uppercase">Present</p>
+                </div>
+                <div className="flex-1 bg-red-50 rounded-xl p-3 text-center border border-red-100">
+                  <p className="text-2xl font-bold text-red-600">{stat.missed}</p>
+                  <p className="text-xs font-bold text-red-700 uppercase">Missed</p>
+                </div>
+              </div>
+            </div>
+          ))}
+          {courseStats.length === 0 && <p className="text-slate-500 col-span-2 text-center py-6">No attendance history found.</p>}
         </div>
-      )}
-
-      {/* ATTENDED CLASSES HISTORY */}
-      {attendedClasses.length > 0 && (
-        <div className="bg-white rounded-2xl border shadow-sm overflow-hidden mt-4 border-green-200">
-          <div className="bg-green-50 p-4 border-b border-green-100">
-            <h2 className="text-lg font-bold text-green-800 flex items-center gap-2"><CheckCircle className="w-5 h-5" /> Attended Classes ({attendedClasses.length})</h2>
-          </div>
-          <table className="w-full text-left text-sm">
-            <tbody>
-              {attendedClasses.map(s => (
-                <tr key={s.id} className="border-b">
-                  <td className="p-3 font-medium">{s.courses?.code} - {s.courses?.title}</td>
-                  <td className="p-3 text-slate-500">{new Date(s.created_at).toLocaleDateString()}</td>
-                  <td className="p-3 text-right"><span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold uppercase">Present</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      </div>
 
     </div>
   )

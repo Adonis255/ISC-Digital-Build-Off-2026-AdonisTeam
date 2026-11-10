@@ -62,7 +62,7 @@ export default function MyClasses() {
         current_token: 'ACTIVE',
         venue_lat: lat,
         venue_lng: lng,
-        radius_meters: 100,
+        radius_meters: 300,
         is_online: false,
         topic: topic,
         notes: notes,

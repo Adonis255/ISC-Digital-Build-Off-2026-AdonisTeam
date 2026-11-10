@@ -167,7 +167,14 @@ export default function LiveLecture() {
               <div key={r.id} className="p-2 bg-green-50 border border-green-200 rounded text-sm flex justify-between items-center">
                 <div>
                   <p className="font-medium">{r.profiles?.full_name || 'Unknown'}</p>
-                  <p className="text-[10px] text-slate-500 font-bold">P: {stats.present} | M: {stats.missed}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-[10px] text-slate-500 font-bold">P: {stats.present} | M: {stats.missed}</p>
+                    {r.distance && (
+                      <p className="text-[10px] text-brand-600 font-bold flex items-center gap-0.5">
+                        <MapPin className="w-3 h-3" /> {Math.round(r.distance)}m away
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <span className="text-xs font-bold text-green-700 uppercase">{r.status}</span>
               </div>

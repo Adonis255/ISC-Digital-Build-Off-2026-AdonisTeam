@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
 import { CheckCircle, ShieldAlert, MapPin, Monitor, FileText, RefreshCw } from 'lucide-react'
@@ -33,7 +33,7 @@ export default function StudentAttendance() {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
-  const checkLocation = () => {
+  const checkLocation = useCallback(() => {
     if (!session) return
     setIsLocating(true)
     setGpsError('')
@@ -48,11 +48,11 @@ export default function StudentAttendance() {
         setGpsError('Could not get location. Please ensure GPS is on.')
         setIsLocating(false)
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 } // FORCES FRESH GPS
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     )
-  }
+  }, [session])
 
-  // 1. Poll for Active Session & Questions
+  // 1. Poll for Active Session & Questions (FIXED: Only updates if the session ID changes)
   useEffect(() => {
     if (!profile) return
     let interval = setInterval(async () => {
@@ -63,10 +63,24 @@ export default function StudentAttendance() {
       const { data: s } = await supabase.from('lecture_sessions').select('*, courses(*)').in('course_id', courseIds).eq('is_active', true).maybeSingle()
       
       if (s) {
-        setSession(s)
+        // Only update state if it's a new session, preventing infinite loops
+        setSession(prev => prev?.id === s.id ? prev : s)
+        
         const { data: rec } = await supabase.from('lecture_attendance').select('*').eq('session_id', s.id).eq('student_id', profile.id).maybeSingle()
         if (rec) setStatus(rec.status === 'Present' || rec.status === 'Manual' ? 'present' : 'too_far')
-        loadQuestions(s.id)
+        
+        const { data: q } = await supabase.from('lecture_questions').select('*, profiles(full_name)').eq('session_id', s.id).order('created_at', { ascending: true })
+        setQuestions(q || [])
+        if (q && q.length > 0) {
+          const qIds = q.map(x => x.id)
+          const { data: res } = await supabase.from('question_responses').select('*, profiles(full_name)').in('question_id', qIds).order('created_at', { ascending: true })
+          const grouped = {}
+          res?.forEach(r => {
+            if (!grouped[r.question_id]) grouped[r.question_id] = []
+            grouped[r.question_id].push(r)
+          })
+          setResponses(grouped)
+        }
       } else {
         setSession(null)
         setStatus('idle')
@@ -75,28 +89,13 @@ export default function StudentAttendance() {
     return () => clearInterval(interval)
   }, [profile])
 
-  // 2. Live distance checker (Every 5 seconds)
+  // 2. Live distance checker (FIXED: Only runs when session ID changes, not the whole object)
   useEffect(() => {
     if (!session || status === 'present') return
-    checkLocation() // Check immediately when session starts
+    checkLocation()
     const trackInterval = setInterval(checkLocation, 5000)
     return () => clearInterval(trackInterval)
-  }, [session, status])
-
-  const loadQuestions = async (sessionId) => {
-    const { data } = await supabase.from('lecture_questions').select('*, profiles(full_name)').eq('session_id', sessionId).order('created_at', { ascending: true })
-    setQuestions(data || [])
-    if (data && data.length > 0) {
-      const qIds = data.map(q => q.id)
-      const { data: res } = await supabase.from('question_responses').select('*, profiles(full_name)').in('question_id', qIds).order('created_at', { ascending: true })
-      const grouped = {}
-      res?.forEach(r => {
-        if (!grouped[r.question_id]) grouped[r.question_id] = []
-        grouped[r.question_id].push(r)
-      })
-      setResponses(grouped)
-    }
-  }
+  }, [session?.id, status, checkLocation])
 
   const verifyAttendance = () => {
     setStatus('verifying')
@@ -116,7 +115,7 @@ export default function StudentAttendance() {
         }
       }, 
       () => setStatus('idle'),
-      { enableHighAccuracy: true, maximumAge: 0 } // Force fresh GPS here too
+      { enableHighAccuracy: true, maximumAge: 0 }
     )
   }
 
@@ -124,7 +123,6 @@ export default function StudentAttendance() {
     if (!newQuestion.trim()) return
     await supabase.from('lecture_questions').insert([{ session_id: session.id, question_text: newQuestion, author_id: profile.id, author_role: 'student' }])
     setNewQuestion('')
-    loadQuestions(session.id)
   }
 
   const submitReply = async (qId) => {
@@ -132,7 +130,6 @@ export default function StudentAttendance() {
     if (!text) return
     await supabase.from('question_responses').insert([{ question_id: qId, student_id: profile.id, response_text: text }])
     setReplyText({ ...replyText, [qId]: '' })
-    loadQuestions(session.id)
   }
 
   if (!session) return <div className="text-center py-10"><p className="text-slate-500">No active classes right now.</p></div>

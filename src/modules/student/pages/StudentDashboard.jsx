@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../../../hooks/useAuth.js'
 import { supabase } from '../../../services/supabase/client.js'
@@ -10,56 +10,64 @@ export default function StudentDashboard() {
   const [feeStats, setFeeStats] = useState({ totalRequired: 0, totalPaid: 0, remaining: 0, progress: 0 })
   const [activeLecture, setActiveLecture] = useState(null)
   const [events, setEvents] = useState([])
-  const [announcements, setAnnouncements] = useState([])
   const [loading, setLoading] = useState(true)
   const [bannerUrl, setBannerUrl] = useState('https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/University_of_Eastern_Africa_Baraton_Main_Building.jpg/1200px-University_of_Eastern_Africa_Baraton_Main_Building.jpg')
 
-  useEffect(() => {
+  const loadDashboard = useCallback(async () => {
     if (!profile) return
-    const loadDashboard = async () => {
-      // 1. Fetch Banner
-      const { data: settings } = await supabase.from('system_settings').select('banner_url').eq('id', 1).maybeSingle()
-      if (settings?.banner_url) setBannerUrl(settings.banner_url)
+    
+    // Fetch Banner
+    const { data: settings } = await supabase.from('system_settings').select('banner_url').eq('id', 1).maybeSingle()
+    if (settings?.banner_url) setBannerUrl(settings.banner_url)
 
-      // 2. Fetch stats
-      const { count: courseCount } = await supabase.from('enrollments').select('*', { count: 'exact', head: true }).eq('student_id', profile.id)
-      
-      // FIXED: Fetch all events, just order by date descending, so past/upcoming both show
-      const { data: ev } = await supabase.from('campus_events').select('*').order('event_date', { ascending: false }).limit(3)
-      setEvents(ev || [])
+    // Fetch stats
+    const { count: courseCount } = await supabase.from('enrollments').select('*', { count: 'exact', head: true }).eq('student_id', profile.id)
+    const { count: noticeCount } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', profile.id).eq('is_read', false)
 
-      const { count: noticeCount } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', profile.id).eq('is_read', false)
+    const { data: records } = await supabase.from('lecture_attendance').select('status').eq('student_id', profile.id)
+    const total = records?.length || 0
+    const present = records?.filter(r => r.status === 'Present' || r.status === 'Manual').length || 0
+    const rate = total > 0 ? Math.round((present / total) * 100) : 0
 
-      const { data: records } = await supabase.from('lecture_attendance').select('status').eq('student_id', profile.id)
-      const total = records?.length || 0
-      const present = records?.filter(r => r.status === 'Present' || r.status === 'Manual').length || 0
-      const rate = total > 0 ? Math.round((present / total) * 100) : 0
+    // FEE CALCULATION
+    const { data: payments } = await supabase.from('finance_records').select('amount').eq('student_id', profile.id).eq('status', 'paid')
+    const totalPaid = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
+    const totalRequired = ((courseCount || 0) * 20000) + 5000
+    const remaining = Math.max(0, totalRequired - totalPaid)
+    const feeProgress = totalRequired > 0 ? Math.min(100, Math.round((totalPaid / totalRequired) * 100)) : 0
 
-      // 3. FEE CALCULATION
-      const { data: payments } = await supabase.from('finance_records').select('amount').eq('student_id', profile.id).eq('status', 'paid')
-      const totalPaid = payments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
-      const totalRequired = ((courseCount || 0) * 20000) + 5000
-      const remaining = Math.max(0, totalRequired - totalPaid)
-      const feeProgress = totalRequired > 0 ? Math.min(100, Math.round((totalPaid / totalRequired) * 100)) : 0
+    setStats({ courses: courseCount || 0, events: 0, notices: noticeCount || 0, attendanceRate: rate })
+    setFeeStats({ totalRequired, totalPaid, remaining, progress: feeProgress })
 
-      setStats({ courses: courseCount || 0, events: ev?.length || 0, notices: noticeCount || 0, attendanceRate: rate })
-      setFeeStats({ totalRequired, totalPaid, remaining, progress: feeProgress })
-
-      // 4. Active Lecture
-      const { data: enrollments } = await supabase.from('enrollments').select('course_id').eq('student_id', profile.id)
-      const courseIds = enrollments?.map(e => e.course_id) || []
-      if (courseIds.length > 0) {
-        const { data: s } = await supabase.from('lecture_sessions').select('*, courses(code, title, profiles(full_name))').in('course_id', courseIds).eq('is_active', true).limit(1)
-        if (s && s.length > 0) setActiveLecture(s[0])
-      }
-
-      const { data: an } = await supabase.from('announcements').select('*').order('created_at', { ascending: false }).limit(2)
-      setAnnouncements(an || [])
-
-      setLoading(false)
+    // Active Lecture
+    const { data: enrollments } = await supabase.from('enrollments').select('course_id').eq('student_id', profile.id)
+    const courseIds = enrollments?.map(e => e.course_id) || []
+    if (courseIds.length > 0) {
+      const { data: s } = await supabase.from('lecture_sessions').select('*, courses(code, title, profiles(full_name))').in('course_id', courseIds).eq('is_active', true).limit(1)
+      if (s && s.length > 0) setActiveLecture(s[0])
+      else setActiveLecture(null)
     }
-    loadDashboard()
+
+    // Events
+    const { data: ev } = await supabase.from('campus_events').select('*').order('event_date', { ascending: true }).limit(3)
+    setEvents(ev || [])
+    setStats(prev => ({ ...prev, events: ev?.length || 0 }))
+
+    setLoading(false)
   }, [profile])
+
+  // Realtime Listener
+  useEffect(() => {
+    loadDashboard()
+
+    if (!profile) return
+    const channel = supabase.channel('dashboard-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lecture_sessions' }, () => loadDashboard())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'campus_events' }, () => loadDashboard())
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
+  }, [profile, loadDashboard])
 
   if (loading) return <div className="p-8 text-center text-slate-500">Loading dashboard...</div>
 
@@ -101,11 +109,10 @@ export default function StudentDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {activeLecture ? (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-slate-100 flex items-center gap-2">
+            <div className="bg-white rounded-2xl border-2 border-brand-500 shadow-md overflow-hidden animate-pulse-slow">
+              <div className="p-5 border-b border-brand-100 bg-brand-50 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                <h2 className="font-bold text-slate-800">Active Lecture – Now</h2>
-                <span className="ml-auto bg-green-100 text-green-700 text-xs font-bold px-2 py-1 rounded-md">In Progress</span>
+                <h2 className="font-bold text-brand-800">Active Lecture – Now</h2>
               </div>
               <div className="p-6 flex flex-col md:flex-row gap-6">
                 <div className="flex-1">
@@ -130,7 +137,7 @@ export default function StudentDashboard() {
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-              <h2 className="font-bold text-slate-800">Recent Events</h2>
+              <h2 className="font-bold text-slate-800">Upcoming Events</h2>
               <Link to="/student/events" className="text-sm text-brand-600 font-bold flex items-center gap-1 hover:underline">View All <ArrowRight className="w-4 h-4" /></Link>
             </div>
             <div className="p-4 space-y-3">
@@ -153,14 +160,10 @@ export default function StudentDashboard() {
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 relative overflow-hidden">
             <h2 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><DollarSign className="w-5 h-5 text-green-600" /> Fee Clearance</h2>
-            
             <div className="text-center mb-4">
               <p className="text-sm text-slate-500 font-medium">Remaining Balance</p>
-              <p className={`text-3xl font-extrabold ${feeStats.remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                Ksh {feeStats.remaining.toLocaleString()}
-              </p>
+              <p className={`text-3xl font-extrabold ${feeStats.remaining > 0 ? 'text-red-600' : 'text-green-600'}`}>Ksh {feeStats.remaining.toLocaleString()}</p>
             </div>
-
             <div className="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden border">
               <div className={`h-3 rounded-full transition-all duration-1000 ${feeStats.progress === 100 ? 'bg-green-500' : 'bg-brand-500'}`} style={{ width: `${feeStats.progress}%` }}></div>
             </div>
@@ -168,21 +171,7 @@ export default function StudentDashboard() {
               <span>Paid: {feeStats.progress}%</span>
               <span>Goal: 100%</span>
             </div>
-
-            <Link to="/student/finance" className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition">
-              Manage Fees <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-            <h2 className="font-bold text-slate-800 mb-6">My Attendance</h2>
-            <div className="flex flex-col items-center">
-              <div className="relative w-32 h-32 rounded-full flex items-center justify-center mb-6" style={{ background: `conic-gradient(#10b981 ${stats.attendanceRate}%, #e2e8f0 0)` }}>
-                <div className="absolute inset-3 bg-white rounded-full flex flex-col items-center justify-center shadow-inner">
-                  <span className="text-2xl font-bold text-slate-900">{stats.attendanceRate}%</span>
-                </div>
-              </div>
-            </div>
+            <Link to="/student/finance" className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 py-2 rounded-xl font-bold flex items-center justify-center gap-2 transition">Manage Fees <ArrowRight className="w-4 h-4" /></Link>
           </div>
         </div>
       </div>

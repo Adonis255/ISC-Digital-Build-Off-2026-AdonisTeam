@@ -16,15 +16,18 @@ export default function WorkerDashboard() {
       const { data: settings } = await supabase.from('system_settings').select('banner_url').eq('id', 1).maybeSingle()
       if (settings?.banner_url) setBannerUrl(settings.banner_url)
 
-      const { data } = await supabase.from('maintenance_assignments')
-        .select('id,request_id,accepted_at,completed_at,maintenance_requests(id,title,status,urgency)')
-        .eq('worker_id', profile.id).order('assigned_at', { ascending: false })
+      // FIXED: Fetch directly from maintenance_requests where assigned_to = worker
+      const { data } = await supabase.from('maintenance_requests')
+        .select('*')
+        .eq('assigned_to', profile.id)
+        .order('created_at', { ascending: false })
+      
       setTasks(data || [])
     })()
   }, [profile?.id])
 
-  const pending = tasks.filter(t => !t.completed_at).length
-  const done = tasks.filter(t => t.completed_at).length
+  const pending = tasks.filter(t => t.status !== 'completed').length
+  const done = tasks.filter(t => t.status === 'completed').length
 
   return (
     <div className="space-y-6 pb-10">
@@ -61,14 +64,13 @@ export default function WorkerDashboard() {
 
       <div className="bg-white rounded-2xl border shadow-sm p-6">
         <h2 className="font-semibold text-lg mb-4">Recent assignments</h2>
-        {tasks.length === 0 ? <p className="text-sm text-slate-500">No assignments yet.</p> : (
+        {tasks.length === 0 ? <p className="text-sm text-slate-500">No assignments yet. Check back later.</p> : (
           <ul className="divide-y">
             {tasks.slice(0, 5).map(t => (
               <li key={t.id} className="py-3">
-                <p className="font-medium">{t.maintenance_requests?.title}</p>
+                <p className="font-medium">{t.title}</p>
                 <p className="text-xs text-slate-500">
-                  Status: {t.maintenance_requests?.status} • Priority: {t.maintenance_requests?.urgency}
-                  {t.completed_at ? ' • Completed' : ''}
+                  Status: <span className="uppercase font-bold">{t.status}</span> • Priority: {t.urgency}
                 </p>
               </li>
             ))}

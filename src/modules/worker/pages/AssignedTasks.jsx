@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../../services/supabase/client.js'
 import { useAuth } from '../../../hooks/useAuth.js'
+import { MapPin, CheckCircle, UploadCloud } from 'lucide-react'
 
 export default function AssignedTasks() {
   const { profile } = useAuth()
@@ -11,7 +12,11 @@ export default function AssignedTasks() {
 
   const loadTasks = async () => {
     if (!profile) return
-    const { data } = await supabase.from('maintenance_requests').select('*').eq('assigned_to', profile.id).order('created_at', { ascending: false })
+    // FIXED: Fetch directly from maintenance_requests
+    const { data } = await supabase.from('maintenance_requests')
+      .select('*')
+      .eq('assigned_to', profile.id)
+      .order('created_at', { ascending: false })
     setTasks(data || [])
     setLoading(false)
   }
@@ -33,10 +38,10 @@ export default function AssignedTasks() {
     loadTasks()
   }
 
-  if (loading) return <p>Loading...</p>
+  if (loading) return <p className="text-center py-10">Loading tasks...</p>
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto pb-10">
       <h1 className="text-2xl font-bold">My Assigned Tasks</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {tasks.map(task => (
@@ -47,8 +52,12 @@ export default function AssignedTasks() {
             </div>
             <h3 className="font-bold text-lg">{task.title}</h3>
             <p className="text-slate-600 text-sm mt-1 flex-1">{task.description}</p>
-            <p className="text-xs font-semibold mt-2 text-slate-700">Category: {task.category} | Urgency: {task.urgency}</p>
             
+            <div className="mt-3 space-y-1 text-xs text-slate-500">
+               <p className="flex items-center gap-1"><MapPin className="w-3 h-3" /> {task.location || 'Campus'}</p>
+               <p className="font-bold">Urgency: {task.urgency}</p>
+            </div>
+
             {task.image_url && <a href={task.image_url} target="_blank" rel="noreferrer" className="text-sm text-brand-600 hover:underline mt-2">View Original Issue Photo</a>}
             
             {task.status !== 'completed' ? (
@@ -64,7 +73,7 @@ export default function AssignedTasks() {
             ) : (
               task.evidence_url && (
                 <div className="mt-4 pt-4 border-t">
-                  <p className="text-sm font-medium text-green-700 mb-2">Completion Evidence Uploaded:</p>
+                  <p className="text-sm font-medium text-green-700 mb-2">Completion Evidence:</p>
                   <a href={task.evidence_url} target="_blank" rel="noreferrer">
                     <img src={task.evidence_url} alt="Evidence" className="w-full h-32 object-cover rounded-lg border" />
                   </a>
@@ -73,7 +82,7 @@ export default function AssignedTasks() {
             )}
           </div>
         ))}
-        {tasks.length === 0 && <p className="text-slate-500 col-span-full">You have no assigned tasks right now.</p>}
+        {tasks.length === 0 && <p className="text-slate-500 col-span-full text-center py-10">You have no assigned tasks right now.</p>}
       </div>
     </div>
   )

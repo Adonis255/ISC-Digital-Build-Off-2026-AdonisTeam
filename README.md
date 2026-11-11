@@ -9,6 +9,34 @@
 
   [🌐 LIVE DEMO](https://baratonhub.vercel.app) · [💻 GITHUB REPOSITORY](https://github.com/Adonis255/ISC-Digital-Build-Off-2026-AdonisTeam)
 
+  ---
+
+## 🔐 Accounts for Judges
+
+To test the platform, please use the following pre-configured accounts. 
+
+**Admin Account (Full Access)**
+*   **URL:** `https://baratonhub.vercel.app/login` 
+*   **Email:** `admin@ueab.ac.ke`
+*   **Password:** `AdminPassword2026!`
+
+**Student Account**
+*   **URL:** `https://baratonhub.vercel.app/login`
+*   **Email:** `soguom2411@ueab.ac.ke`
+*   **Password:** `#Snake038`
+
+**Lecturer Account**
+*   **URL:** `https://baratonhub.vercel.app/login`
+*   **Email:** `felixkiptoo@ueab.ac.ke`
+*   **Password:** `Password123!`
+
+**Worker Account**
+*   **URL:** `https://baratonhub.vercel.app/login`
+*   **Email:** `mercykibet@ueab.ac.ke`
+*   **Password:** `Password123!`
+
+*(Note: Students can create accounts on their own as long as they the ueab student email.. but lectures are created by the admin).*
+
 </p>
 
 ---
